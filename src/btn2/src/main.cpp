@@ -21,7 +21,9 @@
 #include "ButtonService.h"
 
 DigitalOut  led1(LED1);
-InterruptIn button(BUTTON1);
+InterruptIn button1(BUTTON1);
+InterruptIn button2(BUTTON2);
+
 
 const static char     DEVICE_NAME[] = "Button";
 static const uint16_t uuid16_list[] = {ButtonService::BUTTON_SERVICE_UUID};
@@ -31,22 +33,35 @@ enum {
     PRESSED,
     IDLE
 };
-static uint8_t buttonState = IDLE;
+static uint8_t button1State = IDLE;
+static uint8_t button2State = IDLE;
 
 static ButtonService *buttonServicePtr;
 
-void buttonPressedCallback(void)
+void button1PressedCallback(void)
 {
-    /* Note that the buttonPressedCallback() executes in interrupt context, so it is safer to access
+    /* Note that the button1PressedCallback() executes in interrupt context, so it is safer to access
      * BLE device API from the main thread. */
-    buttonState = PRESSED;
+    button1State = PRESSED;
+}
+void button2PressedCallback(void)
+{
+    /* Note that the button1PressedCallback() executes in interrupt context, so it is safer to access
+     * BLE device API from the main thread. */
+    button2State = PRESSED;
 }
 
-void buttonReleasedCallback(void)
+void button1ReleasedCallback(void)
 {
-    /* Note that the buttonReleasedCallback() executes in interrupt context, so it is safer to access
+    /* Note that the button1ReleasedCallback() executes in interrupt context, so it is safer to access
      * BLE device API from the main thread. */
-    buttonState = RELEASED;
+    button1State = RELEASED;
+}
+void button2ReleasedCallback(void)
+{
+    /* Note that the button1ReleasedCallback() executes in interrupt context, so it is safer to access
+     * BLE device API from the main thread. */
+    button2State = RELEASED;
 }
 
 void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
@@ -106,8 +121,12 @@ int main(void)
     led1 = 1;
     Ticker ticker;
     ticker.attach(periodicCallback, 1);
-    button.fall(buttonPressedCallback);
-    button.rise(buttonReleasedCallback);
+    button1.fall(button1PressedCallback);
+    button1.rise(button1ReleasedCallback);
+
+	button2.fall(button2PressedCallback);
+    button2.rise(button2ReleasedCallback);
+
 
     BLE &ble = BLE::Instance();
     ble.init(bleInitComplete);
@@ -117,10 +136,15 @@ int main(void)
     while (ble.hasInitialized()  == false) { /* spin loop */ }
 
     while (true) {
-        if (buttonState != IDLE) {
-            buttonServicePtr->updateButtonState(buttonState);
-            buttonState = IDLE;
+        if (button1State != IDLE) {
+            buttonServicePtr->updateButtonState(ButtonService::BUTTON1_STATE_CHARACTERISTIC_UUID, button1State);
+            button1State = IDLE;
         }
+		if (button2State != IDLE) {
+			buttonServicePtr->updateButtonState(ButtonService::BUTTON2_STATE_CHARACTERISTIC_UUID, button2State);
+			button2State = IDLE;
+		}
+
 
         ble.waitForEvent();
     }

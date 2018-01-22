@@ -14,40 +14,21 @@
  * limitations under the License.
  */
 
-// original: https://os.mbed.com/teams/Bluetooth-Low-Energy/code/BLE_Button/
+// https://os.mbed.com/teams/Bluetooth-Low-Energy/code/BLE_LED/
 
 #include "mbed.h"
 #include "ble/BLE.h"
-#include "ButtonService.h"
+#include "LEDService.h"
 
-DigitalOut  led1(LED1);
-InterruptIn button(BUTTON1);
+DigitalOut alivenessLED(LED1, 0);
+DigitalOut actuatedLED(LED2, 0);
 
-const static char     DEVICE_NAME[] = "Button";
-static const uint16_t uuid16_list[] = {ButtonService::BUTTON_SERVICE_UUID};
+const static char     DEVICE_NAME[] = "LED";
+static const uint16_t uuid16_list[] = {LEDService::LED_SERVICE_UUID};
 
-enum {
-    RELEASED = 0,
-    PRESSED,
-    IDLE
-};
-static uint8_t buttonState = IDLE;
+LEDService *ledServicePtr;
 
-static ButtonService *buttonServicePtr;
-
-void buttonPressedCallback(void)
-{
-    /* Note that the buttonPressedCallback() executes in interrupt context, so it is safer to access
-     * BLE device API from the main thread. */
-    buttonState = PRESSED;
-}
-
-void buttonReleasedCallback(void)
-{
-    /* Note that the buttonReleasedCallback() executes in interrupt context, so it is safer to access
-     * BLE device API from the main thread. */
-    buttonState = RELEASED;
-}
+Ticker ticker;
 
 void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
 {
@@ -56,11 +37,23 @@ void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
 
 void periodicCallback(void)
 {
-    led1 = !led1; /* Do blinky on LED1 to indicate system aliveness. */
+    alivenessLED = !alivenessLED; /* Do blinky on LED1 to indicate system aliveness. */
 }
 
 /**
- * This function is called when the ble initialization process has failled
+ * This callback allows the LEDService to receive updates to the ledState Characteristic.
+ *
+ * @param[in] params
+ *     Information about the characterisitc being updated.
+ */
+void onDataWrittenCallback(const GattWriteCallbackParams *params) {
+    if ((params->handle == ledServicePtr->getValueHandle()) && (params->len == 1)) {
+        actuatedLED = *(params->data);
+    }
+}
+
+/**
+ * This function is called when the ble initialization process has failed
  */
 void onBleInitError(BLE &ble, ble_error_t error)
 {
@@ -87,9 +80,10 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
     }
 
     ble.gap().onDisconnection(disconnectionCallback);
+    ble.gattServer().onDataWritten(onDataWrittenCallback);
 
-    /* Setup primary service */
-    buttonServicePtr = new ButtonService(ble, false /* initial value for button pressed */);
+    bool initialValueForLEDCharacteristic = false;
+    ledServicePtr = new LEDService(ble, initialValueForLEDCharacteristic);
 
     /* setup advertising */
     ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
@@ -98,16 +92,11 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
     ble.gap().setAdvertisingType(GapAdvertisingParams::ADV_CONNECTABLE_UNDIRECTED);
     ble.gap().setAdvertisingInterval(1000); /* 1000ms. */
     ble.gap().startAdvertising();
-
 }
 
 int main(void)
 {
-    led1 = 1;
-    Ticker ticker;
-    ticker.attach(periodicCallback, 1);
-    button.fall(buttonPressedCallback);
-    button.rise(buttonReleasedCallback);
+    ticker.attach(periodicCallback, 1); /* Blink LED every second */
 
     BLE &ble = BLE::Instance();
     ble.init(bleInitComplete);
@@ -117,11 +106,6 @@ int main(void)
     while (ble.hasInitialized()  == false) { /* spin loop */ }
 
     while (true) {
-        if (buttonState != IDLE) {
-            buttonServicePtr->updateButtonState(buttonState);
-            buttonState = IDLE;
-        }
-
         ble.waitForEvent();
     }
 }
