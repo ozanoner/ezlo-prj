@@ -4,8 +4,8 @@
 
 class Opt3001Base {
 public:
-	virtual bool init()=0;
-	virtual float readLux()=0;
+	virtual bool init() { return true; }
+	virtual float readLux()  { return 1.0f; }
 };
 
 #endif

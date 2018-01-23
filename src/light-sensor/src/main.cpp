@@ -19,36 +19,15 @@
 #include "mbed.h"
 #include "ble/BLE.h"
 #include "LightSensorService.h"
-#include "Opt3001Dummy.h"
+#include "Opt3001Base.h"
 
 DigitalOut  led1(LED1);
 
 
 const static char     DEVICE_NAME[] = "LightSensor";
-static const uint16_t uuid16_list[] = {ButtonService::BUTTON_SERVICE_UUID};
+static const uint16_t uuid16_list[] = {LightSensorService::LIGHT_SERVICE_UUID};
 
-enum {
-    RELEASED = 0,
-    PRESSED,
-    IDLE
-};
-static uint8_t buttonState = IDLE;
-
-static ButtonService *buttonServicePtr;
-
-void buttonPressedCallback(void)
-{
-    /* Note that the buttonPressedCallback() executes in interrupt context, so it is safer to access
-     * BLE device API from the main thread. */
-    buttonState = PRESSED;
-}
-
-void buttonReleasedCallback(void)
-{
-    /* Note that the buttonReleasedCallback() executes in interrupt context, so it is safer to access
-     * BLE device API from the main thread. */
-    buttonState = RELEASED;
-}
+static LightSensorService *sensorServicePtr;
 
 void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
 {
@@ -90,7 +69,7 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
     ble.gap().onDisconnection(disconnectionCallback);
 
     /* Setup primary service */
-    buttonServicePtr = new ButtonService(ble, false /* initial value for button pressed */);
+    sensorServicePtr = new LightSensorService(ble);
 
     /* setup advertising */
     ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
@@ -102,13 +81,18 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
 
 }
 
+bool sensorRead=false;
+Opt3001Base sensor; // dummy values
+
 int main(void)
 {
     led1 = 1;
+	sensor.init();
     Ticker ticker;
     ticker.attach(periodicCallback, 1);
-    button.fall(buttonPressedCallback);
-    button.rise(buttonReleasedCallback);
+
+	auto f = [&r=sensorRead]()->void{r=true;};
+	ticker.attach(f, 5);
 
     BLE &ble = BLE::Instance();
     ble.init(bleInitComplete);
@@ -118,11 +102,15 @@ int main(void)
     while (ble.hasInitialized()  == false) { /* spin loop */ }
 
     while (true) {
-        if (buttonState != IDLE) {
-            buttonServicePtr->updateButtonState(buttonState);
-            buttonState = IDLE;
-        }
-
+		try {
+        	if(sensorRead) {
+				sensorServicePtr->updateSensorState(sensor.readLux());
+				sensorRead=false;
+			}
+		}
+		catch(...) {
+			// exception handler
+		}
         ble.waitForEvent();
     }
 }

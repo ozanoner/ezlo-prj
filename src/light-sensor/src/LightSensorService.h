@@ -23,7 +23,7 @@ public:
     const static uint16_t LIGHT_STATE_CHARACTERISTIC_UUID = 0xA601;
 
     LightSensorService(BLEDevice &_ble) :
-        ble(_ble), lightState(LIGHT_STATE_CHARACTERISTIC_UUID, nullptr)
+        ble(_ble), lightState(LIGHT_STATE_CHARACTERISTIC_UUID, nullptr, GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_NOTIFY)
     {
         GattCharacteristic *charTable[] = {&lightState};
         GattService         ledService(LIGHT_SERVICE_UUID, charTable, sizeof(charTable) / sizeof(GattCharacteristic *));
@@ -32,6 +32,11 @@ public:
 
     GattAttribute::Handle_t getValueHandle() const {
         return lightState.getValueHandle();
+    }
+
+	void updateSensorState(float val) {
+		uint32_t v = (uint32_t)val;
+        ble.gattServer().write(lightState.getValueHandle(), (uint8_t *)(&v), sizeof(uint32_t));
     }
 
 private:
