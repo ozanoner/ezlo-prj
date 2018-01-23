@@ -36,3 +36,6 @@
 
 # vim temp
 *~
+
+# tmp dir
+tmp/
