@@ -14,10 +14,14 @@
  * limitations under the License.
  */
 
+
+ // TRY THIS: https://os.mbed.com/teams/mbed-os-examples/code/mbed-os-example-ble-LEDBlinker/file/bf9a45219fe2/source/main.cpp/
+
 #include "mbed.h"
 #include "ble/BLE.h"
 #include "ble/DiscoveredCharacteristic.h"
 #include "ble/DiscoveredService.h"
+#include <iostream>
 
 #define SCAN_INT  0x30 // 30 ms = 48 * 0.625 ms
 #define SCAN_WIND 0x30 // 30 ms = 48 * 0.625 ms
@@ -173,11 +177,32 @@ TODO:
 
 */
 
+#include <iostream>
+#include <string>
+
+#include "SerialData.h"
+#include "SerialReadWrite.h"
+#include "json/src/json.hpp"
+
+SerialReadWrite serial;
+SerialData data(&serial);
+
+DigitalOut led2(LED2);
+void serialDataReceived(const std::string& s) {
+	led2=!led2;
+	serial.write(s);
+}
+
 int main(void)
 {
+	serial.write(std::string("started"));
+
+
+	data.attach(serialDataReceived);
+
+	/*
 
 	BLE &ble = BLE::Instance();
-
     ble.init(bleInitComplete);
 
 	while (1) {
@@ -195,4 +220,7 @@ int main(void)
       }
       ble.waitForEvent();
     }
+	*/
+
+	while(1) {};
 }
