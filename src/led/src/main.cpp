@@ -16,11 +16,13 @@
 
 // https://os.mbed.com/teams/Bluetooth-Low-Energy/code/BLE_LED/
 
-#include "mbed.h"
+#include <mbed_events.h>
+#include <mbed.h>
 #include "ble/BLE.h"
+#include "ble/Gap.h"
 #include "LEDService.h"
 
-DigitalOut alivenessLED(LED1, 0);
+DigitalOut led1(LED1, 0);
 DigitalOut actuatedLED(LED2, 0);
 
 const static char     DEVICE_NAME[] = "LED";
@@ -28,41 +30,29 @@ static const uint16_t uuid16_list[] = {LEDService::LED_SERVICE_UUID};
 
 LEDService *ledServicePtr;
 
-Ticker ticker;
+static EventQueue eventQueue(/* event count */ 10 * EVENTS_EVENT_SIZE);
 
 void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
 {
     BLE::Instance().gap().startAdvertising();
 }
 
-void periodicCallback(void)
+void blinkCallback(void)
 {
-    alivenessLED = !alivenessLED; /* Do blinky on LED1 to indicate system aliveness. */
+    led1 = !led1; /* Do blinky on LED1 to indicate system aliveness. */
 }
 
-/**
- * This callback allows the LEDService to receive updates to the ledState Characteristic.
- *
- * @param[in] params
- *     Information about the characterisitc being updated.
- */
 void onDataWrittenCallback(const GattWriteCallbackParams *params) {
     if ((params->handle == ledServicePtr->getValueHandle()) && (params->len == 1)) {
         actuatedLED = *(params->data);
     }
 }
 
-/**
- * This function is called when the ble initialization process has failed
- */
 void onBleInitError(BLE &ble, ble_error_t error)
 {
     /* Initialization error handling should go here */
 }
 
-/**
- * Callback triggered when the ble initialization process has finished
- */
 void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
 {
     BLE&        ble   = params->ble;
@@ -94,18 +84,21 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
     ble.gap().startAdvertising();
 }
 
+void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context) {
+    BLE &ble = BLE::Instance();
+    eventQueue.call(Callback<void()>(&ble, &BLE::processEvents));
+}
+
 int main(void)
 {
-    ticker.attach(periodicCallback, 1); /* Blink LED every second */
+
+    eventQueue.call_every(500, blinkCallback);
 
     BLE &ble = BLE::Instance();
+    ble.onEventsToProcess(scheduleBleEventsProcessing);
     ble.init(bleInitComplete);
 
-    /* SpinWait for initialization to complete. This is necessary because the
-     * BLE object is used in the main loop below. */
-    while (ble.hasInitialized()  == false) { /* spin loop */ }
+    eventQueue.dispatch_forever();
 
-    while (true) {
-        ble.waitForEvent();
-    }
 }
+

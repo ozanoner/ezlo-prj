@@ -16,38 +16,35 @@
 
 // https://os.mbed.com/teams/Bluetooth-Low-Energy/code/BLE_LED/
 
-#include "mbed.h"
+
+#include <mbed.h>
+#include <mbed_events.h>
 #include "ble/BLE.h"
+#include "ble/Gap.h"
 #include "DimmerService.h"
 
-DigitalOut alivenessLED(LED1, 0);
+DigitalOut led1(LED1, 0);
 PwmOut actuatedLED(LED2);
 
 const static char     DEVICE_NAME[] = "Dimmer";
 static const uint16_t uuid16_list[] = {DimmerService::DIMMER_SERVICE_UUID};
 
-DimmerService *ledServicePtr;
+DimmerService *dimmerService;
 
-Ticker ticker;
+static EventQueue eventQueue(/* event count */ 10 * EVENTS_EVENT_SIZE);
 
 void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
 {
     BLE::Instance().gap().startAdvertising();
 }
 
-void periodicCallback(void)
+void blinkCallback(void)
 {
-    alivenessLED = !alivenessLED; /* Do blinky on LED1 to indicate system aliveness. */
+    led1 = !led1; /* Do blinky on LED1 to indicate system aliveness. */
 }
 
-/**
- * This callback allows the LEDService to receive updates to the ledState Characteristic.
- *
- * @param[in] params
- *     Information about the characterisitc being updated.
- */
 void onDataWrittenCallback(const GattWriteCallbackParams *params) {
-    if ((params->handle == ledServicePtr->getValueHandle()) && (params->len == 1)) {
+    if ((params->handle == dimmerService->getValueHandle()) && (params->len == 1)) {
 		// pwmout, smooth transition can be added
         actuatedLED = 1 - ((float)(*(params->data)))/255;
     }
@@ -68,7 +65,7 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
 {
 
 	actuatedLED.period(0.02); // 50hz
-	actuatedLED = 1; // off 0% duty
+	actuatedLED = 1; // off=0% duty
 
     BLE&        ble   = params->ble;
     ble_error_t error = params->error;
@@ -87,7 +84,7 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
     ble.gap().onDisconnection(disconnectionCallback);
     ble.gattServer().onDataWritten(onDataWrittenCallback);
 
-    ledServicePtr = new DimmerService(ble);
+    dimmerService = new DimmerService(ble);
 
     /* setup advertising */
     ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
@@ -98,18 +95,18 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
     ble.gap().startAdvertising();
 }
 
+void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context) {
+    BLE &ble = BLE::Instance();
+    eventQueue.call(Callback<void()>(&ble, &BLE::processEvents));
+}
+
 int main(void)
 {
-    ticker.attach(periodicCallback, 1); /* Blink LED every second */
+    eventQueue.call_every(500, blinkCallback);
 
     BLE &ble = BLE::Instance();
+    ble.onEventsToProcess(scheduleBleEventsProcessing);
     ble.init(bleInitComplete);
 
-    /* SpinWait for initialization to complete. This is necessary because the
-     * BLE object is used in the main loop below. */
-    while (ble.hasInitialized()  == false) { /* spin loop */ }
-
-    while (true) {
-        ble.waitForEvent();
-    }
+    eventQueue.dispatch_forever();
 }

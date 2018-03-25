@@ -26,8 +26,8 @@ public:
         ble(_ble), lightState(LIGHT_STATE_CHARACTERISTIC_UUID, nullptr, GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_NOTIFY)
     {
         GattCharacteristic *charTable[] = {&lightState};
-        GattService         ledService(LIGHT_SERVICE_UUID, charTable, sizeof(charTable) / sizeof(GattCharacteristic *));
-        ble.addService(ledService);
+        GattService         lightService(LIGHT_SERVICE_UUID, charTable, sizeof(charTable) / sizeof(GattCharacteristic *));
+        ble.gattServer().addService(lightService);
     }
 
     GattAttribute::Handle_t getValueHandle() const {

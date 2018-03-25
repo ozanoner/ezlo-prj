@@ -16,8 +16,11 @@
 
 // original: https://os.mbed.com/teams/Bluetooth-Low-Energy/code/BLE_Button/
 
-#include "mbed.h"
+#include <mbed_events.h>
+#include <mbed.h>
 #include "ble/BLE.h"
+#include "ble/Gap.h"
+
 #include "LightSensorService.h"
 #include "Opt3001Base.h"
 
@@ -29,12 +32,14 @@ static const uint16_t uuid16_list[] = {LightSensorService::LIGHT_SERVICE_UUID};
 
 static LightSensorService *sensorServicePtr;
 
+static EventQueue eventQueue(/* event count */ 10 * EVENTS_EVENT_SIZE);
+
 void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
 {
     BLE::Instance().gap().startAdvertising();
 }
 
-void periodicCallback(void)
+void blinkCallback(void)
 {
     led1 = !led1; /* Do blinky on LED1 to indicate system aliveness. */
 }
@@ -84,22 +89,39 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
 bool sensorRead=false;
 Opt3001Base sensor; // dummy values
 
+void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context) {
+    BLE &ble = BLE::Instance();
+    eventQueue.call(Callback<void()>(&ble, &BLE::processEvents));
+}
+
 int main(void)
 {
     led1 = 1;
 	sensor.init();
+
+/*
     Ticker ticker;
     ticker.attach(periodicCallback, 1);
 
 	auto f = [&r=sensorRead]()->void{r=true;};
 	ticker.attach(f, 5);
+    */
 
+    eventQueue.call_every(500, blinkCallback);
+    auto funcReadSensor = []()->void{sensorServicePtr->updateSensorState(sensor.readLux());};
+    eventQueue.call_every(5000, funcReadSensor);
+
+    BLE &ble = BLE::Instance();
+    ble.onEventsToProcess(scheduleBleEventsProcessing);
+    ble.init(bleInitComplete);
+
+    eventQueue.dispatch_forever();
+
+/*
     BLE &ble = BLE::Instance();
     ble.init(bleInitComplete);
 
-    /* SpinWait for initialization to complete. This is necessary because the
-     * BLE object is used in the main loop below. */
-    while (ble.hasInitialized()  == false) { /* spin loop */ }
+    while (ble.hasInitialized()  == false) { };
 
     while (true) {
 		try {
@@ -113,4 +135,5 @@ int main(void)
 		}
         ble.waitForEvent();
     }
+    */
 }

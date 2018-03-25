@@ -33,7 +33,7 @@ public:
     {
         GattCharacteristic *charTable[] = {&rState, &brState};
         GattService         rgbledService(RGBLED_SERVICE_UUID, charTable, sizeof(charTable) / sizeof(GattCharacteristic *));
-        ble.addService(rgbledService);
+        ble.gattServer().addService(rgbledService);
     }
 
     GattAttribute::Handle_t getRGBCharHandle() const {

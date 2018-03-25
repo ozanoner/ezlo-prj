@@ -17,6 +17,9 @@
 #ifndef __BLE_PLUG_SERVICE_H__
 #define __BLE_PLUG_SERVICE_H__
 
+#include <mbed.h>
+#include "ble/BLE.h"
+
 class PlugService {
 public:
     const static uint16_t PLUG_SERVICE_UUID              = 0xA400;
@@ -27,7 +30,7 @@ public:
     {
         GattCharacteristic *charTable[] = {&plugState};
         GattService         plugService(PLUG_SERVICE_UUID, charTable, sizeof(charTable) / sizeof(GattCharacteristic *));
-        ble.addService(plugService);
+        ble.gattServer().addService(plugService);
     }
 
     GattAttribute::Handle_t getValueHandle() const {

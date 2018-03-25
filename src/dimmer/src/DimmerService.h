@@ -17,6 +17,9 @@
 #ifndef __BLE_DIMMER_SERVICE_H__
 #define __BLE_DIMMER_SERVICE_H__
 
+#include <mbed.h>
+#include "ble/BLE.h"
+
 class DimmerService {
 public:
     const static uint16_t DIMMER_SERVICE_UUID              = 0xA200;
@@ -27,7 +30,7 @@ public:
     {
         GattCharacteristic *charTable[] = {&dimmerState};
         GattService         dimmerService(DIMMER_SERVICE_UUID, charTable, sizeof(charTable) / sizeof(GattCharacteristic *));
-        ble.addService(dimmerService);
+        ble.gattServer().addService(dimmerService);
     }
 
     GattAttribute::Handle_t getValueHandle() const {

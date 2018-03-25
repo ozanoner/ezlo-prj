@@ -16,60 +16,81 @@
 
 // original: https://os.mbed.com/teams/Bluetooth-Low-Energy/code/BLE_Button/
 
-#include "mbed.h"
-#include "ble/BLE.h"
-#include "ButtonService.h"
 
-DigitalOut  led1(LED1);
+
+/* mbed Microcontroller Library
+ * Copyright (c) 2006-2013 ARM Limited
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+
+ https://github.com/ARMmbed/mbed-os-example-ble/tree/master/BLE_Button
+
+ */
+#include <mbed_events.h>
+#include <mbed.h>
+#include "ble/BLE.h"
+#include "ble/Gap.h"
+#include "ButtonService.h"
+// #include "equeue.h"
+
+DigitalOut  led1(LED1, 1);
 InterruptIn button(BUTTON1);
+
+static EventQueue eventQueue(/* event count */ 10 * EVENTS_EVENT_SIZE);
 
 const static char     DEVICE_NAME[] = "Button";
 static const uint16_t uuid16_list[] = {ButtonService::BUTTON_SERVICE_UUID};
 
-enum {
-    RELEASED = 0,
-    PRESSED,
-    IDLE
-};
-static uint8_t buttonState = IDLE;
-
-static ButtonService *buttonServicePtr;
+ButtonService *buttonServicePtr;
 
 void buttonPressedCallback(void)
 {
-    /* Note that the buttonPressedCallback() executes in interrupt context, so it is safer to access
-     * BLE device API from the main thread. */
-    buttonState = PRESSED;
+    eventQueue.call(Callback<void(bool)>(buttonServicePtr, &ButtonService::updateButtonState), true);
 }
 
 void buttonReleasedCallback(void)
 {
-    /* Note that the buttonReleasedCallback() executes in interrupt context, so it is safer to access
-     * BLE device API from the main thread. */
-    buttonState = RELEASED;
+    eventQueue.call(Callback<void(bool)>(buttonServicePtr, &ButtonService::updateButtonState), false);
 }
 
 void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
 {
-    BLE::Instance().gap().startAdvertising();
+    BLE::Instance().gap().startAdvertising(); // restart advertising
 }
 
-void periodicCallback(void)
+void blinkCallback(void)
 {
     led1 = !led1; /* Do blinky on LED1 to indicate system aliveness. */
 }
 
-/**
- * This function is called when the ble initialization process has failled
- */
 void onBleInitError(BLE &ble, ble_error_t error)
 {
     /* Initialization error handling should go here */
 }
 
-/**
- * Callback triggered when the ble initialization process has finished
- */
+void printMacAddress()
+{
+    /* Print out device MAC address to the console*/
+    Gap::AddressType_t addr_type;
+    Gap::Address_t address;
+    BLE::Instance().gap().getAddress(&addr_type, address);
+    printf("DEVICE MAC ADDRESS: ");
+    for (int i = 5; i >= 1; i--){
+        printf("%02x:", address[i]);
+    }
+    printf("%02x\r\n", address[0]);
+}
+
 void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
 {
     BLE&        ble   = params->ble;
@@ -88,7 +109,10 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
 
     ble.gap().onDisconnection(disconnectionCallback);
 
-    /* Setup primary service */
+    button.fall(buttonPressedCallback);
+    button.rise(buttonReleasedCallback);
+
+    /* Setup primary service. */
     buttonServicePtr = new ButtonService(ble, false /* initial value for button pressed */);
 
     /* setup advertising */
@@ -99,29 +123,23 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
     ble.gap().setAdvertisingInterval(1000); /* 1000ms. */
     ble.gap().startAdvertising();
 
+    printMacAddress();
 }
 
-int main(void)
+void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context) {
+    BLE &ble = BLE::Instance();
+    eventQueue.call(Callback<void()>(&ble, &BLE::processEvents));
+}
+
+int main()
 {
-    led1 = 1;
-    Ticker ticker;
-    ticker.attach(periodicCallback, 1);
-    button.fall(buttonPressedCallback);
-    button.rise(buttonReleasedCallback);
+    eventQueue.call_every(500, blinkCallback);
 
     BLE &ble = BLE::Instance();
+    ble.onEventsToProcess(scheduleBleEventsProcessing);
     ble.init(bleInitComplete);
 
-    /* SpinWait for initialization to complete. This is necessary because the
-     * BLE object is used in the main loop below. */
-    while (ble.hasInitialized()  == false) { /* spin loop */ }
+    eventQueue.dispatch_forever();
 
-    while (true) {
-        if (buttonState != IDLE) {
-            buttonServicePtr->updateButtonState(buttonState);
-            buttonState = IDLE;
-        }
-
-        ble.waitForEvent();
-    }
+    return 0;
 }

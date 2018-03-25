@@ -17,6 +17,9 @@
 #ifndef __BLE_LED_SERVICE_H__
 #define __BLE_LED_SERVICE_H__
 
+#include <mbed.h>
+#include "ble/BLE.h"
+
 class LEDService {
 public:
     const static uint16_t LED_SERVICE_UUID              = 0xA100;
@@ -27,7 +30,7 @@ public:
     {
         GattCharacteristic *charTable[] = {&ledState};
         GattService         ledService(LED_SERVICE_UUID, charTable, sizeof(charTable) / sizeof(GattCharacteristic *));
-        ble.addService(ledService);
+        ble.gattServer().addService(ledService);
     }
 
     GattAttribute::Handle_t getValueHandle() const {
