@@ -30,9 +30,18 @@
 static EventQueue eventQueue(/* event count */ 10 * EVENTS_EVENT_SIZE);
 
 
+/*
+
+
+adv peerAddr[a1 80 e1 00 00 cc] rssi -34, isScanResponse 0, AdvertisementType 0
+calling gap.connect in adCallback
+
+*/
+
+
 DigitalOut  led1(LED1, 1);
 
-const Gap::Address_t  BLE_address_BE       = {0xCC, 0x00, 0x00, 0xE1, 0x80, 0x02};
+const Gap::Address_t  BLE_address_BE       = {0xCC, 0x00, 0x00, 0xE1, 0x80, 0x01};
 const Gap::Address_t  BLE_peer_address_BE  = {0xFD, 0x66, 0x05, 0x13, 0xBE, 0xBA};
 
 DiscoveredCharacteristic ledCharacteristic;
@@ -65,76 +74,34 @@ void advertisementCallback(const Gap::AdvertisementCallbackParams_t *params) {
            params->peerAddr[5], params->peerAddr[4], params->peerAddr[3], params->peerAddr[2], params->peerAddr[1], params->peerAddr[0],
            params->rssi, params->isScanResponse, params->type);
 
-    if(params->isScanResponse)
-    {
-        printf("isScanResponse in adCallback\n");
-    }
-    else {
+    if(params->type == GapAdvertisingParams::AdvertisingType_t::ADV_CONNECTABLE_UNDIRECTED) {
+    
         printf("calling gap.connect in adCallback\n");
         BLE::Instance().gap().connect(params->peerAddr, Gap::ADDR_TYPE_PUBLIC, NULL, NULL);
     }
 }
 
-void discoveryTerminationCallback(Gap::Handle_t connectionHandle) {
-    printf("terminated SD for handle %u\r\n", connectionHandle);
-}
 
-void serviceDiscoveryCallback(const DiscoveredService *service) {
-    if (service->getUUID().shortOrLong() == UUID::UUID_TYPE_SHORT) {
-        printf("S UUID-%x attrs[%u %u]\r\n", service->getUUID().getShortUUID(), service->getStartHandle(), service->getEndHandle());
-    } else {
-        printf("S UUID-");
-        const uint8_t *longUUIDBytes = service->getUUID().getBaseUUID();
-        for (unsigned i = 0; i < UUID::LENGTH_OF_LONG_UUID; i++) {
-            printf("%02X", longUUIDBytes[i]);
-        }
-        printf(" attrs[%u %u]\r\n", service->getStartHandle(), service->getEndHandle());
-    }
-}
 
-void characteristicDiscoveryCallback(const DiscoveredCharacteristic *characteristicP) {
-    printf("  C UUID-%x valueAttr[%u] props[%x]\r\n", characteristicP->getUUID().getShortUUID(),
-        characteristicP->getValueHandle(), (uint8_t)characteristicP->getProperties().broadcast());
-    if (characteristicP->getUUID().getShortUUID() == 0xa001) { /* !ALERT! Alter this filter to suit your device. */
-      //printf("  C UUID-%x valueAttr[%u] props[%x]\r\n", characteristicP->getShortUUID(), characteristicP->getValueHandle(), (uint8_t)characteristicP->getProperties().broadcast());
-      ledCharacteristic = *characteristicP;
-      triggerOp = READ;
-    }
-}
 
 void connectionCallback(const Gap::ConnectionCallbackParams_t *params) {
     printf("in conn callback\n");
   uint16_t LED_SERVICE_UUID = 0xA000;
   uint16_t LED_STATE_CHARACTERISTIC_UUID = 0xA001;
 
+  printf("in connectionCallback. role: %d\n", params->role);
+
   if (params->role == Gap::CENTRAL) {
+      /*
     BLE &ble = BLE::Instance();
     ble.gattClient().onServiceDiscoveryTermination(discoveryTerminationCallback);
     ble.gattClient().launchServiceDiscovery(params->handle, serviceDiscoveryCallback,
         characteristicDiscoveryCallback, LED_SERVICE_UUID, LED_STATE_CHARACTERISTIC_UUID);
+        */
   }
 }
 
-void triggerToggledWrite(const GattReadCallbackParams *response) {
-  if (response->handle == ledCharacteristic.getValueHandle()) {
-#if 0
-    printf("triggerToggledWrite: handle %u, offset %u, len %u\r\n", response->handle, response->offset, response->len);
-    for (unsigned index = 0; index < response->len; index++) {
-      printf("%c[%02x]", response->data[index], response->data[index]);
-    }
-    printf("\r\n");
-#endif
 
-    toggledValue = response->data[0] ^ 0x1;
-    triggerOp = WRITE;
-  }
-}
-
-void triggerRead(const GattWriteCallbackParams *response) {
-  if (response->handle == ledCharacteristic.getValueHandle()) {
-    triggerOp = READ;
-  }
-}
 
 /**
  * This function is called when the ble initialization process has failled
@@ -142,6 +109,7 @@ void triggerRead(const GattWriteCallbackParams *response) {
 void onBleInitError(BLE &ble, ble_error_t error)
 {
     /* Initialization error handling should go here */
+    printf("in onBleInitError\n");
 }
 
 /**
@@ -169,11 +137,13 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
     ble.gap().onConnection(connectionCallback);
     ble.gap().onDisconnection(disconnectionCallback);
 
+/*
     ble.gattClient().onDataRead(triggerToggledWrite);
     ble.gattClient().onDataWritten(triggerRead);
+    */
 
     ble.gap().setScanParams(SCAN_INT, SCAN_WIND);
-    // ble.gap().startScan(advertisementCallback);
+    ble.gap().startScan(advertisementCallback);
     perScanEnabled = true;
 
 
@@ -195,21 +165,6 @@ TODO:
 
 */
 
-#include <iostream>
-#include <string>
-
-#include "SerialData.h"
-#include "SerialReadWrite.h"
-#include "json/src/json.hpp"
-
-SerialReadWrite serial;
-SerialData data(&serial);
-
-DigitalOut led2(LED2);
-void serialDataReceived(const std::string& s) {
-	led2=!led2;
-	serial.write(s);
-}
 
 
 void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context) {
@@ -243,7 +198,7 @@ int main(void)
             ble.gap().startScan(advertisementCallback);
         }
     };
-    eventQueue.call_every(5000, scan);
+    // eventQueue.call_every(500, scan);
 
     eventQueue.dispatch_forever();
 
