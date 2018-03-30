@@ -30,6 +30,8 @@
 #include "ble/DiscoveredCharacteristic.h"
 #include "ble/DiscoveredService.h"
 
+#include "SEGGER_RTT.h"
+#define DPRN(...) SEGGER_RTT_printf(0, __VA_ARGS__) 
 
 static const uint8_t DEVICE_NAME[]        = "GW_device";
 static const Gap::Address_t  BLE_gw_addr       = {0xCC, 0x00, 0x00, 0xE1, 0x01, 0x01};
@@ -45,7 +47,7 @@ public:
         _ble(BLE::Instance()),
         _led1(LED1, 0),
         _is_connecting(false),
-        _scan_count(0) { };
+        _scan_count(0) {   };
 
     ~GwDevice()
     {
@@ -60,7 +62,7 @@ public:
         ble_error_t error;
 
         if (_ble.hasInitialized()) {
-            printf("Ble instance already initialised.\r\n");
+            // printf("Ble instance already initialised.\r\n");
             return;
         }
 
@@ -78,7 +80,7 @@ public:
         error = _ble.init(this, &GwDevice::on_init_complete);
 
         if (error) {
-            printf("Error returned by BLE::init.\r\n");
+            DPRN("Error returned by BLE::init.\r\n");
             return;
         }
 
@@ -94,7 +96,7 @@ private:
     void on_init_complete(BLE::InitializationCompleteCallbackContext *event)
     {
         if (event->error) {
-            printf("Error during the initialisation\r\n");
+            DPRN("Error during the initialisation\r\n");
             return;
         }
 
@@ -102,7 +104,7 @@ private:
         Gap::AddressType_t addr_type;
         Gap::Address_t addr;
         _ble.gap().getAddress(&addr_type, addr);
-        printf("Device address: %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+        DPRN("Device address: %02x:%02x:%02x:%02x:%02x:%02x\r\n",
                addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]);
 
         /* all calls are serialised on the user thread through the event queue */
@@ -129,7 +131,7 @@ private:
         // timeout: 0->disabled
         ble_error_t error = _ble.gap().setScanParams(800, 400, 0, true);
         if (error) {
-            printf("Error during Gap::setScanParams\r\n");
+            DPRN("Error during Gap::setScanParams\r\n");
             return;
         }
 
@@ -138,11 +140,11 @@ private:
         error = _ble.gap().startScan(this, &GwDevice::on_scan2);
 
         if (error) {
-            printf("Error during Gap::startScan\r\n");
+            DPRN("Error during Gap::startScan\r\n");
             return;
         }
 
-        printf("Scanning started (interval: %dms, window: %dms, timeout: %ds).\r\n",
+        DPRN("Scanning started (interval: %dms, window: %dms, timeout: %ds).\r\n",
                400, 400, 0);           
     }
 
@@ -151,21 +153,21 @@ private:
         /* keep track of scan events for performance reporting */
         _scan_count++;
 
-        printf(".");
+        DPRN(".");
         if(_scan_count%50 == 0)
-            printf("\n");
+            DPRN("\n");
         if(params->peerAddr[0]!=0xcc)
             return;
         print_address(params->peerAddr);
 
         /* don't bother with analysing scan result if we're already connecting */
         if (_is_connecting) {
-            printf("_is_connecting..\n");
+            DPRN("_is_connecting..\n");
             return;
         }
         ble_error_t error = _ble.gap().connect( params->peerAddr, BLEProtocol::AddressType_t::PUBLIC, nullptr, nullptr);
         if (error) {
-            printf("Error during Gap::connect\r\n");
+            DPRN("Error during Gap::connect\r\n");
             return;
                     
         }
@@ -174,10 +176,10 @@ private:
 
     
     void print_address(const BLEProtocol::AddressBytes_t peerAddr) {
-        printf("peer_addr:");
+        DPRN("peer_addr:");
         for(int i=BLEProtocol::ADDR_LEN-1; i>=0; --i)
-            printf("%02x:",peerAddr[i]);
-        printf("\n");
+            DPRN("%02x:",peerAddr[i]);
+        DPRN("\n");
     }
 
 /*
@@ -202,8 +204,8 @@ terminated SD for handle 0
     {
         // print_performance();
 
-        // printf("Connected in %dms\r\n", _demo_duration.read_ms());
-        printf("connection handle %x, Connected to:", connection_event->handle);
+        // DPRN("Connected in %dms\r\n", _demo_duration.read_ms());
+        DPRN("connection handle %x, Connected to:", connection_event->handle);
         print_address(connection_event->peerAddr);
 
         _is_connecting = false;
@@ -225,15 +227,15 @@ terminated SD for handle 0
 
     void serviceDiscoveryCallback(const DiscoveredService *service) {
         if (service->getUUID().shortOrLong() == UUID::UUID_TYPE_SHORT) {
-            printf("Service Short UUID-%x attrs[%u %u]\r\n", service->getUUID().getShortUUID(), service->getStartHandle(), service->getEndHandle());
+            DPRN("Service Short UUID-%x attrs[%u %u]\r\n", service->getUUID().getShortUUID(), service->getStartHandle(), service->getEndHandle());
         } 
         else {
-            printf("Service Long UUID-");
+            DPRN("Service Long UUID-");
             const uint8_t *longUUIDBytes = service->getUUID().getBaseUUID();
             for (unsigned i = 0; i < UUID::LENGTH_OF_LONG_UUID; i++) {
-                printf("%02x", longUUIDBytes[i]);
+                DPRN("%02x", longUUIDBytes[i]);
             }
-            printf(" attrs[%u %u]\r\n", service->getStartHandle(), service->getEndHandle());
+            DPRN(" attrs[%u %u]\r\n", service->getStartHandle(), service->getEndHandle());
         }
     }
 
@@ -241,7 +243,7 @@ terminated SD for handle 0
     void characteristicDiscoveryCallback(const DiscoveredCharacteristic *characteristicP) {
         
         auto charid = characteristicP->getUUID().getShortUUID();
-        printf("  Char UUID-%x valueAttr[%u] props[%x]\r\n", 
+        DPRN("  Char UUID-%x valueAttr[%u] props[%x]\r\n", 
             charid, 
             characteristicP->getValueHandle(), 
             (uint8_t)characteristicP->getProperties().broadcast());
@@ -249,7 +251,7 @@ terminated SD for handle 0
         if(charid == 0xa001) {
             this->notifyList[charid] = characteristicP;
 
-            // printf ("calling discoverDescriptors..\n");
+            // DPRN ("calling discoverDescriptors..\n");
             // characteristicP->discoverDescriptors(
             //     makeFunctionPointer(this, &GwDevice::charDescDiscCb), 
             //     makeFunctionPointer(this, &GwDevice::charDescDiscTermCb));         
@@ -262,11 +264,11 @@ terminated SD for handle 0
     }
 
     void charDescDiscCb(const CharacteristicDescriptorDiscovery::DiscoveryCallbackParams_t* p) {
-        printf("checking _CCCD\n");
+        DPRN("checking _CCCD\n");
         
         if (p->descriptor.getUUID() == BLE_UUID_DESCRIPTOR_CLIENT_CHAR_CONFIG) { 
             _CCCD = p->descriptor.getAttributeHandle();
-            printf("_CCCD found: %02x\n", _CCCD);
+            DPRN("_CCCD found: %02x\n", _CCCD);
             // p->characteristic.getGattClient()->terminateCharacteristicDescriptorDiscovery(p->characteristic);
             // auto client = p->descriptor.getGattClient();
             // client->terminateCharacteristicDescriptorDiscovery(p->characteristic);
@@ -274,7 +276,7 @@ terminated SD for handle 0
     }
 
     void charDescDiscTermCb(const CharacteristicDescriptorDiscovery::TerminationCallbackParams_t* p) {
-        printf("in charDescDiscTermCb\n");
+        DPRN("in charDescDiscTermCb\n");
         
         uint16_t notification_enabled = 1; 
         _ble.gattClient().write(
@@ -284,6 +286,9 @@ terminated SD for handle 0
             sizeof(notification_enabled),
             reinterpret_cast<const uint8_t*>(&notification_enabled)
         );
+
+        // NOTE: GATT_OP_WRITE_REQ causes CRASH
+        
         // ble_error_t err = p->characteristic.getGattClient()->write( 
         //     GattClient::GATT_OP_WRITE_REQ,
         //     p->characteristic.getConnectionHandle(),
@@ -292,34 +297,34 @@ terminated SD for handle 0
         //     reinterpret_cast<const uint8_t*>(&notification_enabled)
         // );
         // if(err) {
-        //     printf("charDescDiscTermCb err: %d\n", err);
+        //     DPRN("charDescDiscTermCb err: %d\n", err);
         // }
     }
 
 
 
     void hvx_handler(const GattHVXCallbackParams* p) {
-        printf("hvx_handler: conn:%x attr:%x data:%x\n", p->connHandle, p->handle, p->data[0]);
+        DPRN("hvx_handler: conn:%x attr:%x data:%x\n", p->connHandle, p->handle, p->data[0]);
         
     }
 
     void data_read_handler(const GattReadCallbackParams* p) {
-        printf("data_read_handler: conn:%x attr:%x\n", p->connHandle, p->handle);
+        DPRN("data_read_handler: conn:%x attr:%x\n", p->connHandle, p->handle);
     }
 
     void data_written_handler(const GattWriteCallbackParams* p) {
-        printf("data_written_handler: conn:%x attr:%x, status:%d\n", p->connHandle, p->handle, p->status);
+        DPRN("data_written_handler: conn:%x attr:%x, status:%d\n", p->connHandle, p->handle, p->status);
     }
 
 // connection handle passed?
     void discoveryTerminationCallback(Gap::Handle_t connectionHandle) {
-        printf("terminated SD for handle %u\r\n", connectionHandle);
+        DPRN("terminated SD for handle %u\r\n", connectionHandle);
         // if (triggerLedCharacteristic) {
         //     triggerLedCharacteristic = false;
         //     eventQueue.call(updateLedCharacteristic);
         // }
 
-        printf ("calling discoverDescriptors..\n");
+        DPRN ("calling discoverDescriptors..\n");
         this->notifyList[0xa001]->discoverDescriptors(
                 makeFunctionPointer(this, &GwDevice::charDescDiscCb), 
                 makeFunctionPointer(this, &GwDevice::charDescDiscTermCb));         
@@ -333,7 +338,7 @@ terminated SD for handle 0
      *  in our case it calls demo_mode_end() to progress the demo */
     void on_disconnect(const Gap::DisconnectionCallbackParams_t *event)
     {
-        printf("Disconnected\r\n");
+        DPRN("Disconnected\r\n");
 
         /* we have successfully disconnected ending the demo, move to next mode */
         // _event_queue.call(this, &GwDevice::demo_mode_end);
@@ -347,18 +352,18 @@ terminated SD for handle 0
 
         switch (source) {
             case Gap::TIMEOUT_SRC_ADVERTISING:
-                printf("Stopped advertising early due to timeout parameter\r\n");
+                DPRN("Stopped advertising early due to timeout parameter\r\n");
                 break;
             case Gap::TIMEOUT_SRC_SCAN:
-                printf("Stopped scanning early due to timeout parameter\r\n");
+                DPRN("Stopped scanning early due to timeout parameter\r\n");
                 break;
             case Gap::TIMEOUT_SRC_CONN:
-                printf("Failed to connect after scanning %d advertisements\r\n", _scan_count);
+                DPRN("Failed to connect after scanning %d advertisements\r\n", _scan_count);
                 // _event_queue.call(this, &GwDevice::print_performance);
                 // _event_queue.call(this, &GwDevice::demo_mode_end);
                 break;
             default:
-                printf("Unexpected timeout\r\n");
+                DPRN("Unexpected timeout\r\n");
                 break;
         }
     };

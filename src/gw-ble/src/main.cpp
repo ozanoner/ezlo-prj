@@ -23,6 +23,8 @@
 #include "ble/BLE.h"
 #include "GwDevice.h"
 
+#include "SEGGER_RTT.h"
+
 
 /*
 DiscoveredCharacteristic ledCharacteristic;
@@ -140,6 +142,7 @@ void serviceDiscoveryCallback(const DiscoveredService *service) {
 int main()
 {
     GwDevice gap_device;
+    SEGGER_RTT_ConfigUpBuffer(0, NULL, NULL, 0, SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL);
 
     while (1) {
         gap_device.run();
