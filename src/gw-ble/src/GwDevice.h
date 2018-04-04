@@ -33,6 +33,7 @@
 #include "SEGGER_RTT.h"
 #define DPRN(...) SEGGER_RTT_printf(0, __VA_ARGS__) 
 
+
 static const uint8_t DEVICE_NAME[]        = "GW_device";
 static const Gap::Address_t  BLE_gw_addr       = {0xCC, 0x00, 0x00, 0xE1, 0x01, 0x01};
 
@@ -47,7 +48,11 @@ public:
         _ble(BLE::Instance()),
         _led1(LED1, 0),
         _is_connecting(false),
-        _scan_count(0) {   };
+        _scan_count(0)
+    { 
+        // esp32_comm.set_blocking(false);
+        
+    };
 
     ~GwDevice()
     {
@@ -302,18 +307,27 @@ terminated SD for handle 0
     }
 
 
+    
 
     void hvx_handler(const GattHVXCallbackParams* p) {
-        DPRN("hvx_handler: conn:%x attr:%x data:%x\n", p->connHandle, p->handle, p->data[0]);
-        
+        // _event_queue.call(this, &GwDevice::hvx_send_data, p->connHandle, p->handle, *p->data);
+        // this->hvx_send_data(p->connHandle, p->handle, *p->data);
+        DPRN("hvx_handler: conn:%x attr:%x data:%x\n", p->connHandle, p->handle, *p->data);
+    }
+
+    void hvx_send_data(Gap::Handle_t ch, GattAttribute::Handle_t gh, uint8_t d) {
+        DPRN("hvx_handler: conn:%x attr:%x data:%x\n", ch, gh, d);
+        // this->esp32_comm.printf("hvx_handler: conn:%x attr:%x data:%x\n", ch, gh, d);
     }
 
     void data_read_handler(const GattReadCallbackParams* p) {
         DPRN("data_read_handler: conn:%x attr:%x\n", p->connHandle, p->handle);
+        // esp32_comm.printf("data_read_handler: conn:%x attr:%x\n", p->connHandle, p->handle);
     }
 
     void data_written_handler(const GattWriteCallbackParams* p) {
         DPRN("data_written_handler: conn:%x attr:%x, status:%d\n", p->connHandle, p->handle, p->status);
+        // esp32_comm.printf("data_written_handler: conn:%x attr:%x, status:%d\n", p->connHandle, p->handle, p->status);
     }
 
 // connection handle passed?
@@ -381,6 +395,8 @@ terminated SD for handle 0
         _led1 = !_led1;
     };
 
+    
+
 private:
     BLE                &_ble;
     events::EventQueue  _event_queue;
@@ -393,6 +409,7 @@ private:
 
     /* Measure performance of our advertising/scanning */
     size_t              _scan_count;
+
 };
 
 #endif

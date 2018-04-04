@@ -138,10 +138,31 @@ void serviceDiscoveryCallback(const DiscoveredService *service) {
 
 // }
 
+#define DPRN(...) SEGGER_RTT_printf(0, __VA_ARGS__) 
+
+
+#include "PinNames.h"
+
+
+void serialRead(Serial& s) {
+       while(s.readable()) {
+            DPRN("%c",(char)s.getc());
+            // TODO: parser
+       }
+}
 
 int main()
 {
     GwDevice gap_device;
+        // tx = p0_6, rx = p0_8
+    
+    // Serial esp32_comm(P0_6, P0_8, 9600);
+
+    // esp32_comm.attach(serialRead, esp32_comm);
+    // this->_event_queue.call_every(500, [s&=esp32_comm]()->void {
+    //     s.printf("ping from ble");
+    // });
+
     SEGGER_RTT_ConfigUpBuffer(0, NULL, NULL, 0, SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL);
 
     while (1) {
