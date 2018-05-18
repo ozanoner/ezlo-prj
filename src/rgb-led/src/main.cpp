@@ -27,6 +27,8 @@
 
 RGB led(LED2,LED3,LED4);
 
+PwmOut rLed(P0_8), gLed(P0_19), bLed(P0_20);
+
 DigitalOut led1(LED1, 0);
 
 static EventQueue eventQueue(/* event count */ 10 * EVENTS_EVENT_SIZE);
@@ -102,6 +104,10 @@ int main(void)
     BLE &ble = BLE::Instance();
     ble.onEventsToProcess(scheduleBleEventsProcessing);
     ble.init(bleInitComplete);
+
+    rLed.period(1); rLed.write(1);
+    gLed.period(1); gLed.write(1);
+    bLed.period(1); bLed.write(1);
 
     eventQueue.dispatch_forever();
 }

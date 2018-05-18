@@ -42,14 +42,26 @@
 #include "ble/Gap.h"
 #include "ButtonService.h"
 // #include "equeue.h"
-   
+
+
+#include "SEGGER_RTT.h"
+#define DPRN(...) SEGGER_RTT_printf(0, __VA_ARGS__)
+
+
 
 const Gap::Address_t  BLE_address_BE       = {0xCC, 0x00, 0x00, 0xE1, 0x80, 0xA1};
 
-DigitalOut  led1(LED1, 1);
-DigitalOut  ledBtnDisp(LED2, 1);
-DigitalOut ledConnected(LED3, 1);
-InterruptIn button(BUTTON1);
+// DigitalOut  led1(LED1, 1);
+// DigitalOut  ledBtnDisp(LED2, 1);
+// DigitalOut ledConnected(LED3, 1);
+// InterruptIn button(BUTTON1);
+
+DigitalOut  ledBtnDisp(P0_9, 1);
+InterruptIn button(P0_10);
+// InterruptIn button1(P0_30);
+// InterruptIn button2(P0_31);
+
+// InterruptIn button(P0_30);
 
 static EventQueue eventQueue(/* event count */ 10 * EVENTS_EVENT_SIZE);
 
@@ -61,7 +73,6 @@ ButtonService *buttonServicePtr;
 void setButtonLed(bool on) {
     ledBtnDisp = on?0:1;
 }
-
 
 void buttonPressedCallback(void)
 {
@@ -75,20 +86,26 @@ void buttonReleasedCallback(void)
     eventQueue.call(setButtonLed, false);
 }
 
+
+
+
 void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
 {
     BLE::Instance().gap().startAdvertising(); // restart advertising
-    ledConnected = 1;
+    // ledConnected = 1;
 }
 
 
 void connectionCallback(const Gap::ConnectionCallbackParams_t *params) {
-    ledConnected = 0;
+    // ledConnected = 0;
 }
 
 void blinkCallback(void)
 {
-    led1 = !led1; 
+    // led1 = !led1; 
+    // led2 = !led2; 
+    ledBtnDisp = !ledBtnDisp;
+    DPRN("blink");
 }
 
 void onBleInitError(BLE &ble, ble_error_t error)
@@ -122,6 +139,12 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
         return;
     }
 
+// https://os.mbed.com/users/yasuyuki/code/mbed_BLE/docs/tip/main_8cpp_source.html
+    if(ble.gap().setTxPower(4)!=BLE_ERROR_NONE) {
+
+    }
+
+
     /* Ensure that it is the default instance of BLE */
     if(ble.getInstanceID() != BLE::DEFAULT_INSTANCE) {
         return;
@@ -130,8 +153,8 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
     ble.gap().onDisconnection(disconnectionCallback);
     ble.gap().onConnection(connectionCallback);
 
-    button.fall(buttonPressedCallback);
-    button.rise(buttonReleasedCallback);
+    // button.fall(buttonPressedCallback);
+    // button.rise(buttonReleasedCallback);
 
     /* Setup primary service. */
     buttonServicePtr = new ButtonService(ble, false /* initial value for button pressed */);
@@ -156,11 +179,15 @@ void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context)
 
 int main()
 {
-    eventQueue.call_every(500, blinkCallback);
+    eventQueue.call_every(1000, blinkCallback);
 
-    BLE &ble = BLE::Instance();
-    ble.onEventsToProcess(scheduleBleEventsProcessing);
-    ble.init(bleInitComplete);
+    SEGGER_RTT_ConfigUpBuffer(0, NULL, NULL, 0, SEGGER_RTT_MODE_NO_BLOCK_TRIM);
+
+    DPRN("started");
+
+    // BLE &ble = BLE::Instance();
+    // ble.onEventsToProcess(scheduleBleEventsProcessing);
+    // ble.init(bleInitComplete);
 
     eventQueue.dispatch_forever();
 

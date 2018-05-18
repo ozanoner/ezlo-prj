@@ -22,9 +22,9 @@
 #include "ble/Gap.h"
 #include "PlugService.h"
 
-DigitalOut led1(LED1, 0);
+DigitalOut led1(P0_9, 0);
 // TODO: plug pin will be set
-DigitalOut plug(LED2, 0);
+DigitalOut plug(P0_4, 0);
 
 const static char     DEVICE_NAME[] = "Plug";
 static const uint16_t uuid16_list[] = {PlugService::PLUG_SERVICE_UUID};
@@ -40,6 +40,7 @@ void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
 void blinkCallback(void)
 {
     led1 = !led1; /* Do blinky on LED1 to indicate system aliveness. */
+    plug = !plug;
 }
 
 
@@ -99,11 +100,14 @@ void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context)
 int main(void)
 {
 
-    eventQueue.call_every(500, blinkCallback);
+    eventQueue.call_every(1000, blinkCallback);
 
     BLE &ble = BLE::Instance();
     ble.onEventsToProcess(scheduleBleEventsProcessing);
     ble.init(bleInitComplete);
+
+    // set HIGH to see if normally open or closed
+    // plug =0;
 
     eventQueue.dispatch_forever();
 

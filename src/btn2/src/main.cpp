@@ -27,9 +27,22 @@
 
 using namespace std;
 
-DigitalOut  led1(LED1, 1);
-InterruptIn button1(BUTTON1);
-InterruptIn button2(BUTTON2);
+// chip led p0.09
+// chip btn1 p0.30 user
+// chip btn2 p0.31 user
+// chip btn-free (debug) p0.10
+
+
+DigitalOut  statusLed(P0_9, 1);
+InterruptIn button1(P0_30);
+InterruptIn button2(P0_31);
+InterruptIn testButton(P0_10);
+
+
+
+// DigitalOut  led1(LED1, 1);
+// InterruptIn button1(BUTTON1);
+// InterruptIn button2(BUTTON2);
 
 static EventQueue eventQueue(/* event count */ 10 * EVENTS_EVENT_SIZE);
 
@@ -73,7 +86,7 @@ void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
 
 void blinkCallback(void)
 {
-    led1 = !led1; /* Do blinky on LED1 to indicate system aliveness. */
+    // led1 = !led1; /* Do blinky on LED1 to indicate system aliveness. */
 }
 
 void onBleInitError(BLE &ble, ble_error_t error)
@@ -120,10 +133,10 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
 
     ble.gap().onDisconnection(disconnectionCallback);
 
-    button1.fall(button1PressedCallback);
-    button1.rise(button1ReleasedCallback);
-    button2.fall(button2PressedCallback);
-    button2.rise(button2ReleasedCallback);
+    // button1.fall(button1PressedCallback);
+    // button1.rise(button1ReleasedCallback);
+    // button2.fall(button2PressedCallback);
+    // button2.rise(button2ReleasedCallback);
 
     /* Setup primary service. */
     buttonServicePtr = new ButtonService(ble, false /* initial value for button pressed */);
@@ -146,7 +159,25 @@ void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context)
 
 int main()
 {
-    eventQueue.call_every(500, blinkCallback);
+    // eventQueue.call_every(500, blinkCallback);
+
+
+
+    /* test code */
+    statusLed = 1;
+
+    button1.fall([]()-> void{
+        eventQueue.call(Callback<void()>([]()-> void { statusLed=!statusLed; } ));
+    });
+
+    button2.fall([]()-> void{
+        eventQueue.call(Callback<void()>([]()-> void { statusLed=!statusLed; } ));
+    });
+
+    testButton.fall([]()-> void{
+        eventQueue.call(Callback<void()>([]()-> void { statusLed=!statusLed; } ));
+    });
+
 
     BLE &ble = BLE::Instance();
     ble.onEventsToProcess(scheduleBleEventsProcessing);

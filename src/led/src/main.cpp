@@ -22,8 +22,22 @@
 #include "ble/Gap.h"
 #include "LEDService.h"
 
-DigitalOut led1(LED1, 0);
-DigitalOut actuatedLED(LED2, 0);
+
+
+DigitalOut  statusLed(P0_9, 1);
+InterruptIn testButton(P0_10);
+
+// DigitalOut  ledBtnDisp(P0_9, 0);
+// DigitalOut  ledBtnDisp(P0_8, 0);
+
+// DigitalOut actuatedLED(P0_8, 1);
+
+PwmOut actuatedLED(P0_8);
+// PwmOut l2(P0_19);
+// PwmOut l3(P0_20);
+
+// InterruptIn button(P0_10);
+
 
 const static char     DEVICE_NAME[] = "LED";
 static const uint16_t uuid16_list[] = {LEDService::LED_SERVICE_UUID};
@@ -32,6 +46,26 @@ LEDService *ledServicePtr;
 
 static EventQueue eventQueue(/* event count */ 10 * EVENTS_EVENT_SIZE);
 
+
+void toggleActLed() {
+    // actuatedLED = !actuatedLED; 
+    // ledBtnDisp = !ledBtnDisp;
+}
+
+
+void buttonPressedCallback(void)
+{
+    // eventQueue.call(setButtonLed, actOnOff);
+    // eventQueue.call(toggleActLed);
+    // ledBtnDisp = 1;
+}
+
+void buttonReleasedCallback(void)
+{
+    // eventQueue.call(setButtonLed, false);
+    // ledBtnDisp = 0;
+}
+
 void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
 {
     BLE::Instance().gap().startAdvertising();
@@ -39,8 +73,9 @@ void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
 
 void blinkCallback(void)
 {
-    led1 = !led1; /* Do blinky on LED1 to indicate system aliveness. */
+    // ledBtnDisp = !ledBtnDisp;
 }
+
 
 void onDataWrittenCallback(const GattWriteCallbackParams *params) {
     if ((params->handle == ledServicePtr->getValueHandle()) && (params->len == 1)) {
@@ -92,11 +127,33 @@ void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context)
 int main(void)
 {
 
-    eventQueue.call_every(500, blinkCallback);
+    // eventQueue.call_every(1000, blinkCallback);
+
 
     BLE &ble = BLE::Instance();
     ble.onEventsToProcess(scheduleBleEventsProcessing);
     ble.init(bleInitComplete);
+
+    // button.fall(buttonPressedCallback);
+    // button.rise(buttonReleasedCallback);
+
+    actuatedLED.period(0.000001);
+    actuatedLED = 1;
+
+    // l2.period(0.000001);
+    // l2 = 1;
+
+    // l3.period(0.000001);
+    // l3 = 1;
+
+
+    /* test */
+    testButton.fall([]()-> void{
+        eventQueue.call(Callback<void()>([]()-> void { 
+            statusLed=!statusLed; 
+            actuatedLED = !actuatedLED;
+        } ));
+    });
 
     eventQueue.dispatch_forever();
 

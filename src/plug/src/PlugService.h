@@ -17,7 +17,9 @@
 #ifndef __BLE_PLUG_SERVICE_H__
 #define __BLE_PLUG_SERVICE_H__
 
-#include <mbed.h>
+#include "mbed.h"
+#include "ble/GattCharacteristic.h"
+
 #include "ble/BLE.h"
 
 class PlugService {
@@ -26,7 +28,8 @@ public:
     const static uint16_t PLUG_STATE_CHARACTERISTIC_UUID = 0xA401;
 
     PlugService(BLEDevice &_ble) :
-        ble(_ble), plugState(PLUG_STATE_CHARACTERISTIC_UUID, false)
+        ble(_ble), initValue(false),
+        plugState(PLUG_STATE_CHARACTERISTIC_UUID, &initValue)
     {
         GattCharacteristic *charTable[] = {&plugState};
         GattService         plugService(PLUG_SERVICE_UUID, charTable, sizeof(charTable) / sizeof(GattCharacteristic *));
@@ -40,6 +43,7 @@ public:
 private:
     BLEDevice                         &ble;
     ReadWriteGattCharacteristic<bool>  plugState;
+    bool initValue;
 };
 
 #endif /* #ifndef __BLE_LED_SERVICE_H__ */
