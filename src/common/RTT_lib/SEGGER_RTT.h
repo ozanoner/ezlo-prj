@@ -4,6 +4,10 @@ extern "C" {
 #ifndef SEGGER_RTT_H_
 #define SEGGER_RTT_H_
 
+
+#define DPRN(...) SEGGER_RTT_printf(0, __VA_ARGS__)
+
+
 /*********************************************************************
 *              SEGGER MICROCONTROLLER SYSTEME GmbH                   *
 *        Solutions for real time microcontroller applications        *
