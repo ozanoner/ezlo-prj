@@ -9,11 +9,15 @@ using namespace std::placeholders;
 
 // const char* SSID = "breakingBad";
 // const char* SSID_PWD = "@@oy108-33";
-const char* SSID = "ozanopo";
-const char* SSID_PWD = "baa533f161fc";
+// const char* SSID = "ozanopo";
+// const char* SSID_PWD = "baa533f161fc";
 
 // const char* SSID = "eraltd";
 // const char* SSID_PWD = "1001934448";
+
+
+const char* SSID = "eZlo_Smart_House";
+const char* SSID_PWD = "smart16_inHouse";
 
 
 const char* MQTT_SRV = "34.241.70.227";

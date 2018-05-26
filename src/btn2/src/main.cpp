@@ -149,6 +149,10 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
     ble.gap().setAdvertisingInterval(1000); /* 1000ms. */
     ble.gap().startAdvertising();
 
+    // use following to set home & device ID
+    // https://docs.mbed.com/docs/mbed-os-api/en/mbed-os-5.4/api/classBLE.html#a877d56e896f73b5a4ed00928c22b9c26
+    // ble.gap().setAddress();
+
     printMacAddress();
 }
 

@@ -22,68 +22,61 @@
     // USBTX = P0_10,
     // USBRX = P0_11,
 
+#include "HAHardwareDefs.h"
+
+
 #include <mbed_events.h>
 #include <mbed.h>
 #include "PinNames.h"
 #include "EspConn.h"
-#include "SEGGER_RTT.h"
+#include "BleConn.h"
 
+// #include "SEGGER_RTT.h"
+#include "json/src/json.hpp"
+
+
+
+
+using json = nlohmann::json;
 
 
 
 static EventQueue eventQueue;
-Serial pc(P0_6, P0_8, 9600);
-
-// InterruptIn btn1(BUTTON1);
-
-// DigitalOut  led1(LED1, 1);
-// DigitalOut  led_err(LED2, 0);
-// DigitalOut  led_btn1(LED3, 1);
-
-
-DigitalOut statusLed(P0_9, 1);
-// DigitalOut statusLed(LED1, 1);
-
-int i=0;
-
+Serial pc(UART2_TX, UART2_RX, 9600);
 EspConn espConn(pc, eventQueue);
+BleConn bleConn(eventQueue);
+
+DigitalOut statusLed(STATUS_LED, 1);
+InterruptIn testButton(TEST_BTN);
+
 
 void espDataReceivedCb(std::shared_ptr<const char*> data) {
-// void espDataReceivedCb(const char* data) {
-    // DPRN(*data);
-    // espConn.send("[info] received: %s", *data);
-
-    DPRN("[info] in callback");
+    // DPRN("[info] in callback");
     statusLed = !statusLed;
+    
+    auto root = json::parse(*data);
+
+    int devId = root["dev"]; // specific device id
+    int stateId = root["state"]; // state enum, ON_OFF, DIMMER etc
+    int cmd = root["cmd"]; // get=0 | set=1
+    int setValue = root["val"]; // state specific value if cmd=1
+}
+
+void bleDebugPrint(const char* fmt, va_list arg) {
+    espConn.send(fmt, arg);
 }
 
 int main()
 {
-    DPRN("[info] started");
+    // DPRN("[info] started");
     espConn.init(espDataReceivedCb);
-    eventQueue.call_every(1000, []()->void {
-        // statusLed = !statusLed;
-        // pc.printf("%d\n", i++);
-        espConn.send("%d", i++);
-    });  
-    // pc.set_flow_control(mbed::SerialBase::Flow::Disabled, NC, NC);
-    // pc.format(8, SerialBase::None, 1);
-    // pc.set_blocking(false);
-    // // 6->tx , 8->rx
-    // pc.attach([]()->void{
-    //     char c;
-    //     while(pc.readable()) {
-    //         c = pc.getc();
-    //         if(c=='\n')
-    //             DPRN("\n");
-    //         else
-    //             DPRN("%c",c);
-    //     }
-    // });
-
-    // btn1.rise(btn1Pressed);
-    // btn1.fall(btn1Released);
-
+    bleConn.init(bleDebugPrint);
+    
+    testButton.fall([]()->void {
+        eventQueue.call([]()->void {
+            statusLed = !statusLed;
+        });
+    });
 
 
     eventQueue.dispatch_forever();

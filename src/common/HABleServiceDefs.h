@@ -1,0 +1,17 @@
+
+#ifndef HABleServiceDefs_h_
+#define HABleServiceDefs_h_
+
+#define BUTTON1_SERVICE_UUID	0xA000
+#define BUTTON2_SERVICE_UUID	0xA001
+#define LIGHT_SERVICE_UUID		0xA002
+#define LED_SERVICE_UUID			0xA003
+#define RGBLED_SERVICE_UUID		0xA004
+#define PLUG_SERVICE_UUID			0xA005
+#define DIMMER_SERVICE_UUID		0xA006
+
+
+
+
+#endif
+

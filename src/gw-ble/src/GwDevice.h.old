@@ -31,7 +31,7 @@
 #include "ble/DiscoveredService.h"
 
 #include "SEGGER_RTT.h"
-#define DPRN(...) SEGGER_RTT_printf(0, __VA_ARGS__) 
+// #define DPRN(...) SEGGER_RTT_printf(0, __VA_ARGS__) 
 
 
 static const uint8_t DEVICE_NAME[]        = "GW_device";

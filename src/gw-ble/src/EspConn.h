@@ -9,7 +9,7 @@
 #include <cstdarg>
 #include <memory>
 #include <string>
-#include "SEGGER_RTT.h"
+// #include "SEGGER_RTT.h"
 
 using namespace mbed;
 
@@ -19,13 +19,21 @@ private:
     char buff[64];
     int buffi;
     mbed::Callback<void(std::shared_ptr<const char*>)> cb;
-    EventQueue& evq;    
+    EventQueue& evq; 
+   
 public:
 
-EspConn(Serial& serial, EventQueue& eventQueue): 
-    conn(serial), buffi(0), cb(nullptr), evq(eventQueue) { }
+    EspConn(Serial& serial, EventQueue& eventQueue): 
+        conn(serial), buffi(0), cb(nullptr), evq(eventQueue) { }
+    
+    void init(mbed::Callback<void(std::shared_ptr<const char*>)> callback);
+    void send(const char* fmt, ...);
+    void update();
+    
+};
 
-void init(mbed::Callback<void(std::shared_ptr<const char*>)> callback) {
+
+void EspConn::init(mbed::Callback<void(std::shared_ptr<const char*>)> callback) {
     this->conn.set_flow_control(mbed::SerialBase::Flow::Disabled, NC, NC);
     this->conn.format(8, SerialBase::None, 1);
     this->conn.set_blocking(false);
@@ -33,7 +41,7 @@ void init(mbed::Callback<void(std::shared_ptr<const char*>)> callback) {
     this->conn.attach(this, &EspConn::update);
 }
 
-void send(const char* fmt, ...) {
+void EspConn::send(const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
     vfprintf(conn, fmt, args);
@@ -41,7 +49,7 @@ void send(const char* fmt, ...) {
     conn.printf("\n");
 }
 
-void update() {
+void EspConn::update() {
     char c;
     while(conn.readable()) {
         c = conn.getc();
@@ -49,9 +57,9 @@ void update() {
             // buff[buffi<64?buffi:63]=0;
             buff[buffi]=0;
             buffi=0;
-            DPRN("[info] new data: %s", buff);
+            // DPRN("[info] new data: %s", buff);
             if(cb!=nullptr) {
-                DPRN("[info] callback for send", buff);
+                // DPRN("[info] callback for send", buff);
                 string s(buff);
                 std::shared_ptr<const char*> data = std::make_shared<const char*>(s.c_str());
                 // evq.call(cb, data);
@@ -63,10 +71,5 @@ void update() {
         }
     }
 }
-
-
-
-};
-
 
 #endif

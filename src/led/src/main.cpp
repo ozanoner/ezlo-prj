@@ -22,6 +22,9 @@
 #include "ble/Gap.h"
 #include "LEDService.h"
 
+// SoftPWM
+// https://os.mbed.com/users/komaida424/code/SoftPWM/
+
 
 
 DigitalOut  statusLed(P0_9, 1);
