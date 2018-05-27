@@ -14,7 +14,7 @@
 // DEVICE IDs
 // last byte of mac address
 #define GW_ID1		0x01
-#define BTN_ID2		0x02
+#define BTN1_ID2		0x02
 
 
 #endif

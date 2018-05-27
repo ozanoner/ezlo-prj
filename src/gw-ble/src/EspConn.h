@@ -18,7 +18,7 @@ private:
     Serial& conn;
     char buff[64];
     int buffi;
-    mbed::Callback<void(std::shared_ptr<const char*>)> cb;
+    mbed::Callback<void(const char*)> cb;
     EventQueue& evq; 
    
 public:
@@ -26,14 +26,14 @@ public:
     EspConn(Serial& serial, EventQueue& eventQueue): 
         conn(serial), buffi(0), cb(nullptr), evq(eventQueue) { }
     
-    void init(mbed::Callback<void(std::shared_ptr<const char*>)> callback);
+    void init(mbed::Callback<void(const char*)> callback);
     void send(const char* fmt, ...);
     void update();
     
 };
 
 
-void EspConn::init(mbed::Callback<void(std::shared_ptr<const char*>)> callback) {
+void EspConn::init(mbed::Callback<void(const char*)> callback) {
     this->conn.set_flow_control(mbed::SerialBase::Flow::Disabled, NC, NC);
     this->conn.format(8, SerialBase::None, 1);
     this->conn.set_blocking(false);
@@ -61,9 +61,9 @@ void EspConn::update() {
             if(cb!=nullptr) {
                 // DPRN("[info] callback for send", buff);
                 string s(buff);
-                std::shared_ptr<const char*> data = std::make_shared<const char*>(s.c_str());
+                // std::shared_ptr<const char*> data = std::make_shared<const char*>(s.c_str());
                 // evq.call(cb, data);
-                cb(data);
+                cb(s.c_str());
             }
         }
         else if(buffi<64) {

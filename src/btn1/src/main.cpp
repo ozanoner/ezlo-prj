@@ -48,8 +48,13 @@
 #define DPRN(...) SEGGER_RTT_printf(0, __VA_ARGS__)
 
 
+#include "HABleServiceDefs.h"
+#include "HAProvision.h"
+#define DEV_PROVISION_ID BTN1_ID2
 
-const Gap::Address_t  BLE_address_BE       = {0xCC, 0x00, 0x00, 0xE1, 0x80, 0xA1};
+static const uint8_t DEVICE_NAME[] = "Btn1-2";
+static const Gap::Address_t BLE_NW_ADDR = {HOME_ID, 0x00, 0x00, 0xE1, 0x01, DEV_PROVISION_ID};
+static const uint16_t uuid16_list[] = {BUTTON1_SERVICE_UUID};
 
 // DigitalOut  led1(LED1, 1);
 // DigitalOut  ledBtnDisp(LED2, 1);
@@ -65,8 +70,6 @@ InterruptIn button(P0_10);
 
 static EventQueue eventQueue(/* event count */ 10 * EVENTS_EVENT_SIZE);
 
-const static char     DEVICE_NAME[] = "Button";
-static const uint16_t uuid16_list[] = {ButtonService::BUTTON_SERVICE_UUID};
 
 ButtonService *buttonServicePtr;
 
@@ -160,7 +163,7 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
     buttonServicePtr = new ButtonService(ble, false /* initial value for button pressed */);
 
     /* setup advertising */
-    ble.gap().setAddress(BLEProtocol::AddressType::PUBLIC, BLE_address_BE);
+    ble.gap().setAddress(BLEProtocol::AddressType::PUBLIC, BLE_NW_ADDR);
     ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
     ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LIST_16BIT_SERVICE_IDS, (uint8_t *)uuid16_list, sizeof(uuid16_list));
     ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LOCAL_NAME, (uint8_t *)DEVICE_NAME, sizeof(DEVICE_NAME));
@@ -185,9 +188,9 @@ int main()
 
     DPRN("started");
 
-    // BLE &ble = BLE::Instance();
-    // ble.onEventsToProcess(scheduleBleEventsProcessing);
-    // ble.init(bleInitComplete);
+    BLE &ble = BLE::Instance();
+    ble.onEventsToProcess(scheduleBleEventsProcessing);
+    ble.init(bleInitComplete);
 
     eventQueue.dispatch_forever();
 

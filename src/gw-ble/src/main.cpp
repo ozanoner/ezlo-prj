@@ -32,12 +32,8 @@
 #include "BleConn.h"
 
 // #include "SEGGER_RTT.h"
-#include "json/src/json.hpp"
-
-
-
-
-using json = nlohmann::json;
+// #include "json/src/json.hpp"
+// using json = nlohmann::json;
 
 
 
@@ -50,27 +46,32 @@ DigitalOut statusLed(STATUS_LED, 1);
 InterruptIn testButton(TEST_BTN);
 
 
-void espDataReceivedCb(std::shared_ptr<const char*> data) {
+void espDataReceivedCb(const char* data) {
     // DPRN("[info] in callback");
     statusLed = !statusLed;
     
-    auto root = json::parse(*data);
+    bleConn.userCommand(data);
 
-    int devId = root["dev"]; // specific device id
-    int stateId = root["state"]; // state enum, ON_OFF, DIMMER etc
-    int cmd = root["cmd"]; // get=0 | set=1
-    int setValue = root["val"]; // state specific value if cmd=1
+    // auto root = json::parse(*data);
+
+    // int devId = root["dev"]; // specific device id
+    // int stateId = root["state"]; // state enum, ON_OFF, DIMMER etc
+    // int cmd = root["cmd"]; // get=0 | set=1
+    // int setValue = root["val"]; // state specific value if cmd=1
 }
 
 void bleDebugPrint(const char* fmt, va_list arg) {
     espConn.send(fmt, arg);
 }
 
+void bleResponseCallback(const char* resp) {
+    espConn.send(resp);
+}
 int main()
 {
     // DPRN("[info] started");
     espConn.init(espDataReceivedCb);
-    bleConn.init(bleDebugPrint);
+    bleConn.init(bleResponseCallback, bleDebugPrint);
     
     testButton.fall([]()->void {
         eventQueue.call([]()->void {
