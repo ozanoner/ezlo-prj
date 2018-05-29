@@ -21,10 +21,13 @@
 #include "ble/BLE.h"
 #include "ble/Gap.h"
 #include "PlugService.h"
+#include "HAHardwareDefs.h"
 
 DigitalOut led1(P0_9, 0);
-// TODO: plug pin will be set
-DigitalOut plug(P0_4, 0);
+DigitalOut plug(P0_4, 1);
+DigitalOut triac(P0_7, 1);
+InterruptIn testButton(TEST_BTN);
+
 
 const static char     DEVICE_NAME[] = "Plug";
 static const uint16_t uuid16_list[] = {PlugService::PLUG_SERVICE_UUID};
@@ -39,8 +42,8 @@ void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
 
 void blinkCallback(void)
 {
-    led1 = !led1; /* Do blinky on LED1 to indicate system aliveness. */
-    plug = !plug;
+    // led1 = !led1; /* Do blinky on LED1 to indicate system aliveness. */
+    // triac = !triac;
 }
 
 
@@ -107,7 +110,14 @@ int main(void)
     ble.init(bleInitComplete);
 
     // set HIGH to see if normally open or closed
-    // plug =0;
+    // plug =1; => relay ON
+
+    testButton.fall([]()->void {
+        eventQueue.call([]()->void {
+            led1 = !led1;
+            plug = !plug;
+        });
+    });
 
     eventQueue.dispatch_forever();
 

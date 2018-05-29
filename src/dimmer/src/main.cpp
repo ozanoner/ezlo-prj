@@ -22,9 +22,16 @@
 #include "ble/BLE.h"
 #include "ble/Gap.h"
 #include "DimmerService.h"
+#include "HAHardwareDefs.h"
+#include "STPM01Driver.h"
+#include "SEGGER_RTT.h"
 
 DigitalOut led1(LED1, 0);
 PwmOut actuatedLED(LED2);
+SPI spi(NC, STPM01_SDA, STPM01_SCL); // mosi, miso, sclk
+DigitalOut cs(STPM01_SCS, 1);
+DigitalOut syn(STPM01_SYN, 1);
+STPM01Driver pm(spi, cs, syn);
 
 const static char     DEVICE_NAME[] = "Dimmer";
 static const uint16_t uuid16_list[] = {DimmerService::DIMMER_SERVICE_UUID};
@@ -102,11 +109,16 @@ void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context)
 
 int main(void)
 {
-    eventQueue.call_every(500, blinkCallback);
+    // eventQueue.call_every(500, blinkCallback);
+    pm.init();
 
     BLE &ble = BLE::Instance();
     ble.onEventsToProcess(scheduleBleEventsProcessing);
     ble.init(bleInitComplete);
+
+    eventQueue.call_every(1000, []()->void {
+        pm.read();
+    });
 
     eventQueue.dispatch_forever();
 }
