@@ -4,6 +4,10 @@
 #include <Stream.h>
 #include <functional>
 
+
+#define SERIAL_BUFF_SIZE 128
+
+
 using NrfCallbackT = std::function<void(const char*)>;
 
 
@@ -11,7 +15,7 @@ class NrfConn {
 private:
     Stream& nrfConn;
     NrfCallbackT cb;
-    char buff[64];
+    char buff[SERIAL_BUFF_SIZE];
     int buffi;
 public:
 
@@ -32,7 +36,7 @@ public:
                     this->cb(this->buff);
             }
             else {
-                if(buffi<64)
+                if(buffi<SERIAL_BUFF_SIZE)
                     buff[buffi++]=c;
                 else {
                     // buffer overflow

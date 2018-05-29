@@ -7,6 +7,7 @@
 #include <string>
 #include "HABleServiceDefs.h"
 #include <map>
+#include <deque>
 #include <Gap.h>
 #include "json/src/json.hpp"
 using json = nlohmann::json;
@@ -29,8 +30,13 @@ protected:
     ble::attribute_handle_t lastCccdHandle;
   };
 
+
+
   bool connected;
   std::unique_ptr<ConnInfoT> connInfo;
+  std::deque<std::shared_ptr<const DiscoveredCharacteristic>>* notifyList;
+
+
 
   BLEProtocol::AddressBytes_t address;
   UUID::ShortUUIDBytes_t serviceId;
@@ -45,7 +51,7 @@ protected:
   ResponseCallbackT respCb;
   void sendResponse(GattAttribute::Handle_t handle, const uint8_t* data, uint8_t offset=0);
 public:
-  HADevShadow() : respCb(nullptr), connected(false) {}
+  HADevShadow() : respCb(nullptr), connected(false), notifyList(nullptr) {}
   // service id as deviceType
   UUID::ShortUUIDBytes_t deviceType() const { return serviceId; }
   // last byte of mac address
@@ -53,7 +59,7 @@ public:
 
   bool isConnected() const { return this->connected; }
 
-  virtual std::string toString() {}
+  std::string toString() {}
 
   void read(UUID::ShortUUIDBytes_t cUuid);
   void write(UUID::ShortUUIDBytes_t cUuid, int value);
@@ -69,11 +75,16 @@ void HADevShadow::onConnected(Gap::Handle_t h)
   this->connInfo.reset(new ConnInfoT());
   this->connInfo->connectionHandle = h;
   this->connected = true;
+  if(this->notifyList == nullptr) {
+    this->notifyList = new deque<std::shared_ptr<const DiscoveredCharacteristic>>();
+  }
 }
 
 void HADevShadow::onDisconnected()
 {
   this->connected = false;
+  if(this->notifyList != nullptr)
+    delete notifyList;
 }
 
 void HADevShadow::read(UUID::ShortUUIDBytes_t cUuid)

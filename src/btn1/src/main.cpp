@@ -95,12 +95,14 @@ void buttonReleasedCallback(void)
 void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
 {
     BLE::Instance().gap().startAdvertising(); // restart advertising
+    DPRN("[info] disconnected\n");
     // ledConnected = 1;
 }
 
 
 void connectionCallback(const Gap::ConnectionCallbackParams_t *params) {
     // ledConnected = 0;
+    DPRN("[info] connected\n");
 }
 
 void blinkCallback(void)
@@ -108,7 +110,6 @@ void blinkCallback(void)
     // led1 = !led1; 
     // led2 = !led2; 
     ledBtnDisp = !ledBtnDisp;
-    DPRN("blink");
 }
 
 void onBleInitError(BLE &ble, ble_error_t error)
@@ -156,8 +157,8 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
     ble.gap().onDisconnection(disconnectionCallback);
     ble.gap().onConnection(connectionCallback);
 
-    // button.fall(buttonPressedCallback);
-    // button.rise(buttonReleasedCallback);
+    button.fall(buttonPressedCallback);
+    button.rise(buttonReleasedCallback);
 
     /* Setup primary service. */
     buttonServicePtr = new ButtonService(ble, false /* initial value for button pressed */);
@@ -182,7 +183,7 @@ void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context)
 
 int main()
 {
-    eventQueue.call_every(1000, blinkCallback);
+    // eventQueue.call_every(1000, blinkCallback);
 
     SEGGER_RTT_ConfigUpBuffer(0, NULL, NULL, 0, SEGGER_RTT_MODE_NO_BLOCK_TRIM);
 

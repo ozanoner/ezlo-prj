@@ -19,12 +19,12 @@ using json = nlohmann::json;
 
 
 
-#define DEBUG_PRINT_ON
+#define BLE_LOG_ENABLED
 
-#ifdef DEBUG_PRINT_ON
-#define DPRN_BLE(format, ...) dbg (format, ##__VA_ARGS__)
+#ifdef BLE_LOG_ENABLED
+#define BLE_LOG(format, ...) dbg (format, ##__VA_ARGS__)
 #else
-#define DPRN_BLE(format, ...)
+#define BLE_LOG(format, ...)
 #endif
 
 #include "HABleServiceDefs.h"
@@ -44,7 +44,7 @@ private:
     BLE& ble;
     events::EventQueue& evq;
     bool isProcessing;
-    int scanCnt;
+    // int scanCnt;
 
 
     // map devices over connection handles
@@ -96,9 +96,11 @@ private:
 
     HADevShadow::ResponseCallbackT respCb;
 
+    void printDeviceCharacteristics(const HADevShadow& dev);
+
 public:
     BleConn(EventQueue& evq) : evq(evq), ble(BLE::Instance()),
-                               isProcessing(false), scanCnt(0),
+                               isProcessing(false), //scanCnt(0),
                                debugPrint(nullptr) 
     {    }
 
@@ -144,10 +146,8 @@ void BleConn::dbg(const char* fmt, ...) {
 
 void BleConn::init(HADevShadow::ResponseCallbackT respCb, DebugPrintFuncT debugpf=nullptr) {
 
-    if (ble.hasInitialized()) {
-        // printf("Ble instance already initialised.");
+    if (ble.hasInitialized())
         return;
-    }
 
     this->debugPrint = debugpf;
     this->respCb = respCb;
@@ -159,11 +159,11 @@ void BleConn::init(HADevShadow::ResponseCallbackT respCb, DebugPrintFuncT debugp
 
     ble_error_t error = ble.init(this, &BleConn::onInitComplete);
     if (error) {
-        DPRN_BLE("Error returned by BLE::init.");
+        BLE_LOG("[Error] BLE::init.");
         return;
     }
-
     evq.dispatch_forever();
+    BLE_LOG("[Info] BleConn::init completed");
 }
 
 void BleConn::scheduleBleEvents(BLE::OnEventsToProcessCallbackContext *context)
@@ -178,18 +178,18 @@ void BleConn::onTimeout(const Gap::TimeoutSource_t source)
     switch (source)
     {
     case Gap::TIMEOUT_SRC_ADVERTISING:
-        DPRN_BLE("Stopped advertising early due to timeout parameter");
+        BLE_LOG("[Warning] Stopped advertising early due to timeout parameter");
         break;
     case Gap::TIMEOUT_SRC_SCAN:
-        DPRN_BLE("Stopped scanning early due to timeout parameter");
+        BLE_LOG("[Warning] Stopped scanning early due to timeout parameter");
         break;
     case Gap::TIMEOUT_SRC_CONN:
-        DPRN_BLE("Failed to connect after scanning %d advertisements");
+        BLE_LOG("[Warning] Failed to connect after scanning %d advertisements");
         // evq.call(this, &BleConn::print_performance);
         // evq.call(this, &BleConn::demo_mode_end);
         break;
     default:
-        DPRN_BLE("Unexpected timeout");
+        BLE_LOG("[Error] Unexpected timeout");
         break;
     }
 }
@@ -198,7 +198,7 @@ void BleConn::onInitComplete(BLE::InitializationCompleteCallbackContext *event)
 {
     if (event->error)
     {
-        DPRN_BLE("Error during the initialisation");
+        BLE_LOG("[Error] BleConn::onInitComplete input event");
         return;
     }
 
@@ -220,56 +220,57 @@ void BleConn::onInitComplete(BLE::InitializationCompleteCallbackContext *event)
     ble.gattClient().onServiceDiscoveryTermination(
         makeFunctionPointer(this, &BleConn::onServiceDiscoveryTermination));
 
-    evq.call_every(1000, this, &BleConn::scan);
-    // evq.call(this, &BleConn::scan);
-    isProcessing = false;
+
+    // timeout: 0->disabled
+    if (ble.gap().setScanParams(800, 400, 0, true) != BLE_ERROR_NONE) {
+        BLE_LOG("[Error] Gap::setScanParams");
+        return;
+    }
+
+    BLE_LOG("[Info] BleConn::onInitComplete completed. Scanning..");
+    evq.call(this, &BleConn::scan);
 }
 
 void BleConn::scan()
 {
-    // timeout: 0->disabled
-    ble_error_t error = ble.gap().setScanParams(800, 400, 0, true);
-    if (error)
-    {
-        DPRN_BLE("Error during Gap::setScanParams");
+    BLE_LOG("[Info] Gap::startScan");
+    if(ble.gap().startScan(this, &BleConn::onAdDetected)!= BLE_ERROR_NONE) {
+        BLE_LOG("[Error] Gap::startScan");
         return;
     }
-
-    /* start scanning and attach a callback that will handle advertisements
-         * and scan requests responses */
-    error = ble.gap().startScan(this, &BleConn::onAdDetected);
-    if (error) {
-        DPRN_BLE("Error during Gap::startScan");
-        return;
-    }
-
-    DPRN_BLE("Scanning started (interval: %dms, window: %dms, timeout: %ds).",
-         400, 400, 0);
 }
 
 void BleConn::onAdDetected(const Gap::AdvertisementCallbackParams_t *params)
 {
-    if (isProcessing)
-        return;
-
-    // home address 0xCC
-    if (params->peerAddr[HOME_ID_IDX] != HOME_ID)
-        return;
-    isProcessing = true;
-
-    ble_error_t error = ble.gap().connect(params->peerAddr, BLEProtocol::AddressType_t::PUBLIC, nullptr, nullptr);
-    if (error)
-    {
-        isProcessing = false;
-        DPRN_BLE("Error during Gap::connect");
+    if (isProcessing) {
+        // BLE_LOG("[Info] BleConn::onAdDetected. isProcessing..");
         return;
     }
 
+    // if(this->ble.gattClient().isServiceDiscoveryActive()) {
+    //     return;
+    // }
+
+    // home address 0xCC
+    if (params->peerAddr[HOME_ID_IDX] != HOME_ID) {
+        // BLE_LOG("[Info] BleConn::onAdDetected. invalid home_id (%hhx)", 
+        //     params->peerAddr[HOME_ID_IDX]);
+        return;
+    }
+    isProcessing = true;
+
+    BLE_LOG("[Info] Gap::connect");
+    if(ble.gap().connect(params->peerAddr, 
+            BLEProtocol::AddressType_t::PUBLIC, nullptr, nullptr)) {
+        isProcessing = false;
+        BLE_LOG("[Error] Gap::connect");
+        return;
+    }
 }
 
 void BleConn::onConnected(const Gap::ConnectionCallbackParams_t *conn)
 {
-    DPRN_BLE("connection handle %x, Connected to:", conn->handle);
+    BLE_LOG("[Info] BleConn::onConnected (%x)", conn->handle);
 
     this->actDevice = nullptr;
     auto devId = conn->peerAddr[DEV_ID_IDX];
@@ -292,7 +293,7 @@ void BleConn::onConnected(const Gap::ConnectionCallbackParams_t *conn)
 
 void BleConn::onDisconnected(const Gap::DisconnectionCallbackParams_t *event)
 {
-    DPRN_BLE("Disconnected");
+    BLE_LOG("[Warning] BleConn::onDisconnected");
     if(this->deviceExists(event->handle)) {
         this->devices[event->handle]->onDisconnected();
     }
@@ -301,6 +302,7 @@ void BleConn::onDisconnected(const Gap::DisconnectionCallbackParams_t *event)
 
 void BleConn::onServiceDiscovery(const DiscoveredService *service)
 {
+    BLE_LOG("[Info] BleConn::onServiceDiscovery");
     // short uuid expected
     if (service->getUUID().shortOrLong() == UUID::UUID_TYPE_SHORT)
     {
@@ -314,76 +316,118 @@ void BleConn::onServiceDiscovery(const DiscoveredService *service)
             || shortUUID == PLUG_SERVICE_UUID
             || shortUUID == DIMMER_SERVICE_UUID) 
         {
-            this->actDevice->serviceId = service->getUUID().getShortUUID();
+            this->actDevice->serviceId = shortUUID;
+            BLE_LOG("[Info] DISCOVERED SERVICE(%x)", shortUUID);
         }
         else {
             // TODO: disconnect & disable to reconnect
+            BLE_LOG("[Warning] INVALID SERVICE(%x)", shortUUID);
+            // this->ble.gattClient().terminateServiceDiscovery();
         }
+    }
+    else {
+        // this->ble.gattClient().terminateServiceDiscovery();
     }
 }
 
 void BleConn::onServiceDiscoveryTermination(Gap::Handle_t connectionHandle)
 {
-    DPRN_BLE("terminated SD for handle %u", connectionHandle);
+    // BLE_LOG("terminated SD for handle %u", connectionHandle);
+    BLE_LOG("[Info] BleConn::onServiceDiscoveryTermination");
+
+    auto device = this->getDevice(connectionHandle);
+    if(device == nullptr) {
+        // not in the devices map
+        BLE_LOG("[Error] no device with that connection handle");
+        return;
+    }
+
+    while(!device->notifyList->empty()) {
+        auto discChar = device->notifyList->back();
+        discChar->discoverDescriptors(
+            makeFunctionPointer(this, &BleConn::onCharDescriptorDisc),
+            makeFunctionPointer(this, &BleConn::onCharDescriptorDiscTermination));
+        device->notifyList->pop_back();
+    }
 
     // Right place to stop. characteristic discovery has info about connection
     // DONT USE actDevice from that point on
     isProcessing = false;
+    evq.call(this, &BleConn::scan);
 }
+
+void BleConn::printDeviceCharacteristics(const HADevShadow& dev) {
+    BLE_LOG("[Info] device (%x)", dev.devId());
+    for(const auto& p: dev.connInfo->characteristics) {
+        BLE_LOG("[Info] characteristic: %x", p.first);
+    }
+}
+
 
 // https://os.mbed.com/docs/v5.7/mbed-os-api-doxy/class_discovered_characteristic.html
 void BleConn::onCharacteristicDiscovery(const DiscoveredCharacteristic *discChar)
 {
+    BLE_LOG("[Info] BleConn::onCharacteristicDiscovery");
     auto device = this->getDevice(discChar->getConnectionHandle());
     if(device == nullptr) {
         // not in the devices map
+        BLE_LOG("[Error] no device with that connection handle");
         return;
     }
 
     auto shortUUID = discChar->getUUID().getShortUUID();
-    bool continueWithDesc=false;
+    // bool continueWithDesc=false;
     switch(device->deviceType()) {
         case BUTTON1_SERVICE_UUID:
             if(shortUUID == BUTTON_STATE_CHARACTERISTIC_UUID
                 || shortUUID == BATTERY_STATE_CHARACTERISTIC_UUID) 
             {
+                BLE_LOG("[Info] BleConn::onCharacteristicDiscovery. button or battery characteristic");
                 device->connInfo->characteristics.emplace(shortUUID, 
                     std::make_shared<const DiscoveredCharacteristic>(std::move(*discChar)));
-                continueWithDesc = true;
+                device->notifyList->push_back(device->connInfo->characteristics[shortUUID]);
+                // continueWithDesc = true;
+                printDeviceCharacteristics(*device);
             }
         break;
         default: // unknown device type??
         break;
     }
-    if(continueWithDesc) {
-        discChar->discoverDescriptors(
-            makeFunctionPointer(this, &BleConn::onCharDescriptorDisc),
-            makeFunctionPointer(this, &BleConn::onCharDescriptorDiscTermination));
-    }
+    // if(continueWithDesc) {
+
+    //     BLE_LOG("[Info] starting discoverDescriptors..");
+    //     discChar->discoverDescriptors(
+    //         makeFunctionPointer(this, &BleConn::onCharDescriptorDisc),
+    //         makeFunctionPointer(this, &BleConn::onCharDescriptorDiscTermination));
+    // }
 }
 
 void BleConn::onCharDescriptorDisc(const CharacteristicDescriptorDiscovery::DiscoveryCallbackParams_t* p)
 {
-    DPRN_BLE("checking _CCCD\n");
-
+    BLE_LOG("[Info] BleConn::onCharDescriptorDisc");
     if (p->descriptor.getUUID() == BLE_UUID_DESCRIPTOR_CLIENT_CHAR_CONFIG)
     {
         auto device = this->getDevice(p->characteristic.getConnectionHandle());
-        if(device == nullptr)
+        if(device == nullptr) {
+            BLE_LOG("[Error] no device with that connection handle");
             return;
+        }
         device->connInfo->lastCccdHandle = p->descriptor.getAttributeHandle();
-        DPRN_BLE("_CCCD found: %02x\n", device->connInfo->lastCccdHandle);
+        // BLE_LOG("_CCCD found: %02x\n", device->connInfo->lastCccdHandle);
+        BLE_LOG("[Info] CCCD found");
         ble.gattClient().terminateCharacteristicDescriptorDiscovery(p->characteristic);
     }
 }
 
 void BleConn::onCharDescriptorDiscTermination(const CharacteristicDescriptorDiscovery::TerminationCallbackParams_t *p)
 {
-    DPRN_BLE("in charDescDiscTermCb\n");
+    BLE_LOG("[Info] BleConn::onCharDescriptorDiscTermination");
 
     auto device = this->getDevice(p->characteristic.getConnectionHandle());
-    if(device == nullptr)
+    if(device == nullptr) {
+        BLE_LOG("[Error] no device with that connection handle");
         return;
+    }
 
     uint16_t notification_enabled = 1;
     ble.gattClient().write(
@@ -399,7 +443,8 @@ void BleConn::onHVX(const GattHVXCallbackParams *p)
 {
     // _event_queue.call(this, &GwDevice::hvx_send_data, p->connHandle, p->handle, *p->data);
     // this->hvx_send_data(p->connHandle, p->handle, *p->data);
-    DPRN_BLE("hvx_handler: conn:%x attr:%x data:%x\n", p->connHandle, p->handle, *p->data);
+    // BLE_LOG("hvx_handler: conn:%x attr:%x data:%x\n", p->connHandle, p->handle, *p->data);
+    BLE_LOG("[Info] BleConn::onHVX (data:%x)", *p->data);
 
     auto device = this->getDevice(p->connHandle);
     if(device == nullptr)
@@ -409,8 +454,9 @@ void BleConn::onHVX(const GattHVXCallbackParams *p)
 
 void BleConn::onDataRead(const GattReadCallbackParams *p)
 {
-    DPRN_BLE("onDataRead: conn:%x attr:%x\n", p->connHandle, p->handle);
+    // BLE_LOG("onDataRead: conn:%x attr:%x\n", p->connHandle, p->handle);
     // esp32_comm.printf("onDataRead: conn:%x attr:%x\n", p->connHandle, p->handle);
+    BLE_LOG("[Info] BleConn::onDataRead (data:%x)", *p->data);
 
     auto device = this->getDevice(p->connHandle);
     if(device == nullptr)
@@ -420,7 +466,8 @@ void BleConn::onDataRead(const GattReadCallbackParams *p)
 
 void BleConn::onDataWritten(const GattWriteCallbackParams *p)
 {
-    DPRN_BLE("onDataWritten: conn:%x attr:%x, status:%d\n", p->connHandle, p->handle, p->status);
+    // BLE_LOG("onDataWritten: conn:%x attr:%x, status:%d\n", p->connHandle, p->handle, p->status);
+    BLE_LOG("[Info] BleConn::onDataWritten (status:%d)", p->status);
     // esp32_comm.printf("onDataWritten: conn:%x attr:%x, status:%d\n", p->connHandle, p->handle, p->status);
     auto device = this->getDevice(p->connHandle);
     if(device == nullptr)

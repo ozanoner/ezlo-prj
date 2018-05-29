@@ -71,13 +71,19 @@ int main()
 {
     // DPRN("[info] started");
     espConn.init(espDataReceivedCb);
-    bleConn.init(bleResponseCallback, bleDebugPrint);
-    
-    testButton.fall([]()->void {
-        eventQueue.call([]()->void {
-            statusLed = !statusLed;
-        });
+
+    // delay for 30 secs to start esp-conn
+    // add callback to notify mqtt connected
+
+    eventQueue.call_in(30000, []()->void {
+        bleConn.init(bleResponseCallback, bleDebugPrint);
     });
+    
+    // testButton.fall([]()->void {
+    //     eventQueue.call([]()->void {
+    //         statusLed = !statusLed;
+    //     });
+    // });
 
 
     eventQueue.dispatch_forever();

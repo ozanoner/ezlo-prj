@@ -9,15 +9,15 @@ using namespace std::placeholders;
 
 // const char* SSID = "breakingBad";
 // const char* SSID_PWD = "@@oy108-33";
-// const char* SSID = "ozanopo";
-// const char* SSID_PWD = "baa533f161fc";
+const char* SSID = "ozanopo";
+const char* SSID_PWD = "baa533f161fc";
 
 // const char* SSID = "eraltd";
 // const char* SSID_PWD = "1001934448";
 
 
-const char* SSID = "eZlo_Smart_House";
-const char* SSID_PWD = "smart16_inHouse";
+// const char* SSID = "eZlo_Smart_House";
+// const char* SSID_PWD = "smart16_inHouse";
 
 
 const char* MQTT_SRV = "34.241.70.227";
@@ -103,21 +103,21 @@ void loop() {
 
 
 void mqttCb(char* topic, byte* payload, unsigned int length) {
-    if(length>=64) // unexpected mess len
+    if(length>=SERIAL_BUFF_SIZE) // unexpected mess len
         return;
 
-    char mqttReceiveBuffer[64];
+    char mqttReceiveBuffer[SERIAL_BUFF_SIZE];
     int i;
     for(i=0; i<length; i++)
         mqttReceiveBuffer[i] = (char)payload[i];
     mqttReceiveBuffer[i]=0;
 
     nrfConn.write(mqttReceiveBuffer);
-    Serial.printf("[from mqtt] %s\n", mqttReceiveBuffer);
+    Serial.printf("[info] mqtt: %s\n", mqttReceiveBuffer);
 }
 
 void nrfReceiveCallback(const char* data) {
-    Serial.printf("[from nrf] %s\n", data);
+    Serial.printf("[info] nrf: %s\n", data);
     mqttConn.publish(data);
 }
 

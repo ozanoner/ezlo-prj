@@ -11,12 +11,14 @@
 #include <string>
 // #include "SEGGER_RTT.h"
 
+#define SERIAL_BUFF_SIZE 128
+
 using namespace mbed;
 
 class EspConn {
 private:
     Serial& conn;
-    char buff[64];
+    char buff[SERIAL_BUFF_SIZE];
     int buffi;
     mbed::Callback<void(const char*)> cb;
     EventQueue& evq; 
@@ -54,7 +56,7 @@ void EspConn::update() {
     while(conn.readable()) {
         c = conn.getc();
         if(c=='\n') {
-            // buff[buffi<64?buffi:63]=0;
+            // buff[buffi<SERIAL_BUFF_SIZE?buffi:63]=0;
             buff[buffi]=0;
             buffi=0;
             // DPRN("[info] new data: %s", buff);
@@ -66,7 +68,7 @@ void EspConn::update() {
                 cb(s.c_str());
             }
         }
-        else if(buffi<64) {
+        else if(buffi<SERIAL_BUFF_SIZE) {
             buff[buffi++]=c;
         }
     }
