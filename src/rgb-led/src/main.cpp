@@ -25,11 +25,18 @@
 #include "RGB.h"
 #include <cstring>
 
-RGB led(LED2,LED3,LED4);
+#include "HAHardwareDefs.h"
 
-PwmOut rLed(P0_8), gLed(P0_19), bLed(P0_20);
+// RGB led(LED2,LED3,LED4);
 
-DigitalOut led1(LED1, 0);
+// PwmOut rLed(P0_8), gLed(P0_19), bLed(P0_20);
+
+DigitalOut led1(STATUS_LED, 1);
+InterruptIn testButton(TEST_BTN);
+
+
+DigitalOut rLed(P0_8, 1), gLed(P0_19, 1), bLed(P0_20, 1);
+
 
 static EventQueue eventQueue(/* event count */ 10 * EVENTS_EVENT_SIZE);
 
@@ -51,7 +58,7 @@ void onDataWrittenCallback(const GattWriteCallbackParams *params) {
 		// pwmout, smooth transition can be added
 		uint32_t color;
 		memcpy(&color, params->data, 4);
-		led.setColor(Color(color));
+		// led.setColor(Color(color));
     }
 }
 
@@ -99,15 +106,29 @@ void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context)
 
 int main(void)
 {
-    eventQueue.call_every(500, []()->void{ led1 = !led1; });;
+    // eventQueue.call_every(1000, []()->void{ 
+    //     led1 = !led1;
+    //     rLed = !rLed;
+    //     gLed = !gLed;
+    //     bLed = !bLed;       
+    // });
 
     BLE &ble = BLE::Instance();
     ble.onEventsToProcess(scheduleBleEventsProcessing);
     ble.init(bleInitComplete);
 
-    rLed.period(1); rLed.write(1);
-    gLed.period(1); gLed.write(1);
-    bLed.period(1); bLed.write(1);
+    // rLed.period(1); rLed.write(1);
+    // gLed.period(1); gLed.write(1);
+    // bLed.period(1); bLed.write(1);
+
+    testButton.fall([]()->void {
+        eventQueue.call([]()->void {
+            led1 = !led1;
+            rLed = !rLed;
+            gLed = !gLed;
+            bLed = !bLed;
+        });
+    });
 
     eventQueue.dispatch_forever();
 }

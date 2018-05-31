@@ -24,6 +24,9 @@
 // #include "equeue.h"
 
 #include <iostream>
+#include "HAHardwareDefs.h"
+#include "HABleServiceDefs.h"
+
 
 using namespace std;
 
@@ -33,10 +36,10 @@ using namespace std;
 // chip btn-free (debug) p0.10
 
 
-DigitalOut  statusLed(P0_9, 1);
-InterruptIn button1(P0_30);
-InterruptIn button2(P0_31);
-InterruptIn testButton(P0_10);
+DigitalOut  statusLed(STATUS_LED, 1);
+InterruptIn button1(BTN_BTN1);
+InterruptIn button2(BTN_BTN2);
+InterruptIn testButton(TEST_BTN);
 
 
 
@@ -46,37 +49,43 @@ InterruptIn testButton(P0_10);
 
 static EventQueue eventQueue(/* event count */ 10 * EVENTS_EVENT_SIZE);
 
-const static char     DEVICE_NAME[] = "Button";
-static const uint16_t uuid16_list[] = {ButtonService::BUTTON_SERVICE_UUID};
+const static char     DEVICE_NAME[] = "BTN2_DEV3";
+static const uint16_t uuid16_list[] = {BUTTON2_SERVICE_UUID};
 
 ButtonService *buttonServicePtr;
+
+void toggleStatusLed() {
+    eventQueue.call(Callback<void()>([]()-> void { statusLed=!statusLed; } ));
+}
 
 void button1PressedCallback(void)
 {
     eventQueue.call(Callback<void(uint16_t, bool)>(buttonServicePtr,\
         &ButtonService::updateButtonState),\
-        ButtonService::BUTTON1_STATE_CHARACTERISTIC_UUID, true);
+        BUTTON1_STATE_CHARACTERISTIC_UUID, true);
+    toggleStatusLed();
 }
 
 void button1ReleasedCallback(void)
 {
     eventQueue.call(Callback<void(uint16_t, bool)>(buttonServicePtr,\
         &ButtonService::updateButtonState),\
-        ButtonService::BUTTON1_STATE_CHARACTERISTIC_UUID, false);
+        BUTTON1_STATE_CHARACTERISTIC_UUID, false);
 }
 
 void button2PressedCallback(void)
 {
     eventQueue.call(Callback<void(uint16_t, bool)>(buttonServicePtr,\
         &ButtonService::updateButtonState),\
-        ButtonService::BUTTON2_STATE_CHARACTERISTIC_UUID, true);
+        BUTTON2_STATE_CHARACTERISTIC_UUID, true);
+    toggleStatusLed();
 }
 
 void button2ReleasedCallback(void)
 {
     eventQueue.call(Callback<void(uint16_t, bool)>(buttonServicePtr,\
         &ButtonService::updateButtonState),\
-        ButtonService::BUTTON2_STATE_CHARACTERISTIC_UUID, false);
+        BUTTON2_STATE_CHARACTERISTIC_UUID, false);
 }
 
 void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
@@ -133,10 +142,10 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
 
     ble.gap().onDisconnection(disconnectionCallback);
 
-    // button1.fall(button1PressedCallback);
-    // button1.rise(button1ReleasedCallback);
-    // button2.fall(button2PressedCallback);
-    // button2.rise(button2ReleasedCallback);
+    button1.fall(button1PressedCallback);
+    button1.rise(button1ReleasedCallback);
+    button2.fall(button2PressedCallback);
+    button2.rise(button2ReleasedCallback);
 
     /* Setup primary service. */
     buttonServicePtr = new ButtonService(ble, false /* initial value for button pressed */);
@@ -170,13 +179,13 @@ int main()
     /* test code */
     statusLed = 1;
 
-    button1.fall([]()-> void{
-        eventQueue.call(Callback<void()>([]()-> void { statusLed=!statusLed; } ));
-    });
+    // button1.fall([]()-> void{
+    //     eventQueue.call(Callback<void()>([]()-> void { statusLed=!statusLed; } ));
+    // });
 
-    button2.fall([]()-> void{
-        eventQueue.call(Callback<void()>([]()-> void { statusLed=!statusLed; } ));
-    });
+    // button2.fall([]()-> void{
+    //     eventQueue.call(Callback<void()>([]()-> void { statusLed=!statusLed; } ));
+    // });
 
     testButton.fall([]()-> void{
         eventQueue.call(Callback<void()>([]()-> void { statusLed=!statusLed; } ));

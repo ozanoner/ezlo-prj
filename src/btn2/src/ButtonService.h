@@ -17,18 +17,20 @@
 #ifndef __BLE_BUTTON_SERVICE_H__
 #define __BLE_BUTTON_SERVICE_H__
 
+#include "HABleServiceDefs.h"
+
 class ButtonService {
 public:
-    const static uint16_t BUTTON_SERVICE_UUID              = 0xA000;
-	const static uint16_t BUTTON1_STATE_CHARACTERISTIC_UUID = 0xA001;
-    const static uint16_t BUTTON2_STATE_CHARACTERISTIC_UUID = 0xA002;
+    // const static uint16_t BUTTON_SERVICE_UUID              = 0xA000;
+	// const static uint16_t BUTTON1_STATE_CHARACTERISTIC_UUID = 0xA001;
+    // const static uint16_t BUTTON2_STATE_CHARACTERISTIC_UUID = 0xA002;
 
     ButtonService(BLE &_ble, bool buttonPressedInitial) : ble(_ble),
 		button1State(BUTTON1_STATE_CHARACTERISTIC_UUID, &buttonPressedInitial, GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_NOTIFY),
 		button2State(BUTTON2_STATE_CHARACTERISTIC_UUID, &buttonPressedInitial, GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_NOTIFY)
     {
         GattCharacteristic *charTable[] = {&button1State, &button2State};
-        GattService buttonService(ButtonService::BUTTON_SERVICE_UUID, charTable, sizeof(charTable) / sizeof(GattCharacteristic *));
+        GattService buttonService(BUTTON2_SERVICE_UUID, charTable, sizeof(charTable) / sizeof(GattCharacteristic *));
         ble.gattServer().addService(buttonService);
     }
 

@@ -2,6 +2,7 @@
 #ifndef Opt3001Base_h_
 #define Opt3001Base_h_
 
+// for testing purpose
 class Opt3001Base {
 public:
 	virtual bool init() { return true; }

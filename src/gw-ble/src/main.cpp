@@ -31,7 +31,7 @@
 #include "EspConn.h"
 #include "BleConn.h"
 
-// #include "SEGGER_RTT.h"
+#include "SEGGER_RTT.h"
 // #include "json/src/json.hpp"
 // using json = nlohmann::json;
 
@@ -48,7 +48,7 @@ InterruptIn testButton(TEST_BTN);
 
 void espDataReceivedCb(const char* data) {
     // DPRN("[info] in callback");
-    statusLed = !statusLed;
+    // statusLed = !statusLed;
     
     bleConn.userCommand(data);
 
@@ -62,6 +62,7 @@ void espDataReceivedCb(const char* data) {
 
 void bleDebugPrint(const char* fmt, va_list arg) {
     espConn.send(fmt, arg);
+    DPRN(fmt, arg);
 }
 
 void bleResponseCallback(const char* resp) {
@@ -69,7 +70,6 @@ void bleResponseCallback(const char* resp) {
 }
 int main()
 {
-    // DPRN("[info] started");
     espConn.init(espDataReceivedCb);
 
     // delay for 30 secs to start esp-conn
@@ -79,11 +79,7 @@ int main()
         bleConn.init(bleResponseCallback, bleDebugPrint);
     });
     
-    // testButton.fall([]()->void {
-    //     eventQueue.call([]()->void {
-    //         statusLed = !statusLed;
-    //     });
-    // });
+   
 
 
     eventQueue.dispatch_forever();

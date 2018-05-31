@@ -22,10 +22,15 @@
 #include "ble/Gap.h"
 
 #include "LightSensorService.h"
-#include "Opt3001Base.h"
+#include "Opt3001.h"
 
-DigitalOut  led1(LED1);
+#include "HAHardwareDefs.h"
+#include "SEGGER_RTT.h"
 
+DigitalOut  led1(STATUS_LED, 1);
+InterruptIn testBtn(TEST_BTN);
+I2C i2c(P0_12, P0_11);
+Opt3001 sensor(i2c);
 
 const static char     DEVICE_NAME[] = "LightSensor";
 static const uint16_t uuid16_list[] = {LightSensorService::LIGHT_SERVICE_UUID};
@@ -87,7 +92,7 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
 }
 
 bool sensorRead=false;
-Opt3001Base sensor; // dummy values
+// Opt3001Base sensor; // dummy values
 
 void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context) {
     BLE &ble = BLE::Instance();
@@ -107,8 +112,16 @@ int main(void)
 	ticker.attach(f, 5);
     */
 
-    eventQueue.call_every(500, blinkCallback);
-    auto funcReadSensor = []()->void{sensorServicePtr->updateSensorState(sensor.readLux());};
+    // eventQueue.call_every(500, blinkCallback);
+
+    testBtn.fall([]()->void {
+        led1 = !led1;
+    });
+    auto funcReadSensor = [&sensor]()->void{
+        auto val = sensor.readLux();
+        DPRN("[info] lux:%f\n", val);
+        sensorServicePtr->updateSensorState(val);
+    };
     eventQueue.call_every(5000, funcReadSensor);
 
     BLE &ble = BLE::Instance();

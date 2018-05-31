@@ -16,33 +16,46 @@ i2c addressing: (datasheet @page 12)
 */
 #include "mbed.h"
 #include "Opt3001Base.h"
+#include "SEGGER_RTT.h"
+
 
 #ifndef Opt3001_h_
 #define Opt3001_h_
 
 class Opt3001: public Opt3001Base {
 public:
-	Opt3001(I2C& p): port(p): ready(false) {	}
+	Opt3001(I2C& p): port(p), ready(false) {	}
 	bool init() override {
 		// default config, datasheet@page 21
-		this->ready = this->port.write(I2C_ADDR, {0x01, 0xc4, 0x10}, 3)==0;
+		char cmd[3]= {0x01, 0xc4, 0x10};
+		this->ready = this->port.write(I2C_ADDR, cmd, sizeof(cmd))==0;
+		DPRN("isReady: %d\n", this->ready);
 		return this->ready;
 	}
 	float readLux() override {
+		if(!this->ready)
+			return -1;
 		// refer to datasheet
 		// to command result reg @addr 0x0
-		if(!this->port.write(I2C_ADDR, {0x0}, 1))
-			throw exception();
+		char cmd[1]= {0x0};
+		if(this->port.write(I2C_ADDR, cmd, 1)) {
+			DPRN("write failed\n");
+			return -1;
+		}
 
-		uint8_t resp[2];
-		if(!this->port.read(I2C_ADDR, resp, 2))
-			throw exception();
-		int exp = (0xf0 & resp[1])>>4;
-		int man = (0x0f & resp[1])<<8 & resp[0];
+		char resp[2];
+		if(this->port.read(I2C_ADDR, resp, 2)) {
+			DPRN("read failed\n");
+			return -1;
+		}
+		DPRN("lux: %x-%x", resp[0], resp[1]);
+		int exp = (0xf0 & (uint8_t)resp[1])>>4;
+		int man = (0x0f & (uint8_t)resp[1])<<8 & (uint8_t)resp[0];
 		return 0.01f * pow(2, exp) * man;
 	}
 private:
-	I2C port;
+	// https://os.mbed.com/handbook/I2C
+	I2C& port;
 	const static uint8_t I2C_ADDR = 0x44 << 1; // mbed requirement
 	bool ready;
 };

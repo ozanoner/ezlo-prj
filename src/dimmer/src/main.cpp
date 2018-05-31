@@ -26,12 +26,17 @@
 #include "STPM01Driver.h"
 #include "SEGGER_RTT.h"
 
-DigitalOut led1(LED1, 0);
-PwmOut actuatedLED(LED2);
+DigitalOut led1(P0_9, 0);
+DigitalOut plug(P0_4, 1);
+DigitalOut triac(P0_7, 1);
+
 SPI spi(NC, STPM01_SDA, STPM01_SCL); // mosi, miso, sclk
 DigitalOut cs(STPM01_SCS, 1);
 DigitalOut syn(STPM01_SYN, 1);
 STPM01Driver pm(spi, cs, syn);
+
+InterruptIn testButton(TEST_BTN);
+
 
 const static char     DEVICE_NAME[] = "Dimmer";
 static const uint16_t uuid16_list[] = {DimmerService::DIMMER_SERVICE_UUID};
@@ -53,7 +58,8 @@ void blinkCallback(void)
 void onDataWrittenCallback(const GattWriteCallbackParams *params) {
     if ((params->handle == dimmerService->getValueHandle()) && (params->len == 1)) {
 		// pwmout, smooth transition can be added
-        actuatedLED = 1 - ((float)(*(params->data)))/255;
+        // actuatedLED = 1 - ((float)(*(params->data)))/255;
+        // triac
     }
 }
 
@@ -70,9 +76,9 @@ void onBleInitError(BLE &ble, ble_error_t error)
  */
 void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
 {
-
-	actuatedLED.period(0.02); // 50hz
-	actuatedLED = 1; // off=0% duty
+    // triac
+	// actuatedLED.period(0.02); // 50hz
+	// actuatedLED = 1; // off=0% duty
 
     BLE&        ble   = params->ble;
     ble_error_t error = params->error;
@@ -119,6 +125,14 @@ int main(void)
     eventQueue.call_every(1000, []()->void {
         pm.read();
     });
+
+    testButton.fall([]()->void {
+        eventQueue.call([]()->void {
+            led1 = !led1;
+            plug = !plug;
+        });
+    });
+
 
     eventQueue.dispatch_forever();
 }

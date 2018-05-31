@@ -20,10 +20,17 @@
 #include <mbed.h>
 #include "ble/BLE.h"
 
+#include "HABleServiceDefs.h"
+#include "HAProvision.h"
+#define DEV_PROVISION_ID LED_ID4
+
+static const uint8_t DEVICE_NAME[] = "Comodo-LED1";
+static const Gap::Address_t BLE_NW_ADDR = {HOME_ID, 0x00, 0x00, 0xE1, 0x01, DEV_PROVISION_ID};
+
 class LEDService {
 public:
-    const static uint16_t LED_SERVICE_UUID              = 0xA100;
-    const static uint16_t LED_STATE_CHARACTERISTIC_UUID = 0xA101;
+    // const static uint16_t LED_SERVICE_UUID              = 0xA100;
+    // const static uint16_t LED_STATE_CHARACTERISTIC_UUID = 0xA101;
 
     LEDService(BLEDevice &_ble, bool initialValueForLEDCharacteristic) :
         ble(_ble), ledState(LED_STATE_CHARACTERISTIC_UUID, &initialValueForLEDCharacteristic)

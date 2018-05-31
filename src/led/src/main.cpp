@@ -22,28 +22,33 @@
 #include "ble/Gap.h"
 #include "LEDService.h"
 
+#include "HAHardwareDefs.h"
+#include "HAProvision.h"
+
 // SoftPWM
 // https://os.mbed.com/users/komaida424/code/SoftPWM/
 
 
 
-DigitalOut  statusLed(P0_9, 1);
-InterruptIn testButton(P0_10);
+DigitalOut  statusLed(STATUS_LED, 1);
+InterruptIn testButton(TEST_BTN);
 
 // DigitalOut  ledBtnDisp(P0_9, 0);
 // DigitalOut  ledBtnDisp(P0_8, 0);
 
-// DigitalOut actuatedLED(P0_8, 1);
+// DigitalOut led(P0_8, 1);
 
-PwmOut actuatedLED(P0_8);
+SoftPwmOut led(LED_WHITE_PWM);
 // PwmOut l2(P0_19);
 // PwmOut l3(P0_20);
 
 // InterruptIn button(P0_10);
 
 
-const static char     DEVICE_NAME[] = "LED";
-static const uint16_t uuid16_list[] = {LEDService::LED_SERVICE_UUID};
+
+
+const static char     DEVICE_NAME[] = "LED_ID4";
+static const uint16_t uuid16_list[] = {LED_SERVICE_UUID};
 
 LEDService *ledServicePtr;
 
@@ -51,7 +56,7 @@ static EventQueue eventQueue(/* event count */ 10 * EVENTS_EVENT_SIZE);
 
 
 void toggleActLed() {
-    // actuatedLED = !actuatedLED; 
+    // led = !led; 
     // ledBtnDisp = !ledBtnDisp;
 }
 
@@ -82,7 +87,9 @@ void blinkCallback(void)
 
 void onDataWrittenCallback(const GattWriteCallbackParams *params) {
     if ((params->handle == ledServicePtr->getValueHandle()) && (params->len == 1)) {
-        actuatedLED = *(params->data);
+        uint8_t val = *(params->data);
+        val= val<0?0: (val>20?20: val);
+        led = ((float)val)/100;
     }
 }
 
@@ -102,16 +109,18 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
         return;
     }
 
+
     /* Ensure that it is the default instance of BLE */
     if(ble.getInstanceID() != BLE::DEFAULT_INSTANCE) {
         return;
     }
-
+    
+    ble.gap().setAddress(Gap::AddressType_t::PUBLIC, BLE_NW_ADDR);
     ble.gap().onDisconnection(disconnectionCallback);
     ble.gattServer().onDataWritten(onDataWrittenCallback);
 
     bool initialValueForLEDCharacteristic = false;
-    ledServicePtr = new LEDService(ble, initialValueForLEDCharacteristic);
+    ledServicePtr = new LEDService(ble, initialValueForLEDCharacteristic);  
 
     /* setup advertising */
     ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
@@ -140,21 +149,15 @@ int main(void)
     // button.fall(buttonPressedCallback);
     // button.rise(buttonReleasedCallback);
 
-    actuatedLED.period(0.000001);
-    actuatedLED = 1;
+    led.period(0.000001);
+    led = 0.2;
 
-    // l2.period(0.000001);
-    // l2 = 1;
-
-    // l3.period(0.000001);
-    // l3 = 1;
-
-
+   
     /* test */
     testButton.fall([]()-> void{
         eventQueue.call(Callback<void()>([]()-> void { 
             statusLed=!statusLed; 
-            actuatedLED = !actuatedLED;
+            led = (led==0?0.2:0);
         } ));
     });
 

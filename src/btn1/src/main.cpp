@@ -63,7 +63,7 @@ static const uint16_t uuid16_list[] = {BUTTON1_SERVICE_UUID};
 
 DigitalOut  ledBtnDisp(P0_9, 1);
 InterruptIn button(P0_10);
-// InterruptIn button1(P0_30);
+InterruptIn button1(P0_30);
 // InterruptIn button2(P0_31);
 
 // InterruptIn button(P0_30);

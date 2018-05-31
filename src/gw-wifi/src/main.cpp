@@ -9,11 +9,11 @@ using namespace std::placeholders;
 
 // const char* SSID = "breakingBad";
 // const char* SSID_PWD = "@@oy108-33";
-const char* SSID = "ozanopo";
-const char* SSID_PWD = "baa533f161fc";
+// const char* SSID = "ozanopo";
+// const char* SSID_PWD = "baa533f161fc";
 
-// const char* SSID = "eraltd";
-// const char* SSID_PWD = "1001934448";
+const char* SSID = "eraltd";
+const char* SSID_PWD = "1001934448";
 
 
 // const char* SSID = "eZlo_Smart_House";
@@ -49,6 +49,7 @@ void mqttDisconnectedCb();
 
 HardwareSerial Serial2(2);
 NrfConn nrfConn(Serial2);
+#define STATUS_LED 33
 
 WifiConn wifiConn;
 MqttConnConfigT mqttCfg {
@@ -60,6 +61,9 @@ MqttConn mqttConn;
 
 
 void setup() {
+    // pinMode(STATUS_LED, OUTPUT);
+    // digitalWrite(STATUS_LED, HIGH);
+
     delay(5000);
     Serial2.begin(9600, SERIAL_8N1);
     Serial.begin(9600, SERIAL_8N1);
