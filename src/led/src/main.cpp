@@ -24,6 +24,7 @@
 
 #include "HAHardwareDefs.h"
 #include "HAProvision.h"
+#include "SoftPwmOut.h"
 
 // SoftPWM
 // https://os.mbed.com/users/komaida424/code/SoftPWM/
@@ -38,7 +39,7 @@ InterruptIn testButton(TEST_BTN);
 
 // DigitalOut led(P0_8, 1);
 
-SoftPwmOut led(LED_WHITE_PWM);
+// SoftPwmOut led(LED_WHITE_PWM);
 // PwmOut l2(P0_19);
 // PwmOut l3(P0_20);
 
@@ -46,8 +47,11 @@ SoftPwmOut led(LED_WHITE_PWM);
 
 
 
+DigitalOut led1(STATUS_LED, 1);
+DigitalOut rLed(P0_8, 1), gLed(P0_19, 1), bLed(P0_20, 1);
 
-const static char     DEVICE_NAME[] = "LED_ID4";
+
+// const static char     DEVICE_NAME[] = "LED_ID4";
 static const uint16_t uuid16_list[] = {LED_SERVICE_UUID};
 
 LEDService *ledServicePtr;
@@ -89,7 +93,7 @@ void onDataWrittenCallback(const GattWriteCallbackParams *params) {
     if ((params->handle == ledServicePtr->getValueHandle()) && (params->len == 1)) {
         uint8_t val = *(params->data);
         val= val<0?0: (val>20?20: val);
-        led = ((float)val)/100;
+        // led = ((float)val)/100;
     }
 }
 
@@ -149,16 +153,18 @@ int main(void)
     // button.fall(buttonPressedCallback);
     // button.rise(buttonReleasedCallback);
 
-    led.period(0.000001);
-    led = 0.2;
+    // led.period(0.000001);
+    // led = 0.2;
 
    
     /* test */
-    testButton.fall([]()-> void{
-        eventQueue.call(Callback<void()>([]()-> void { 
-            statusLed=!statusLed; 
-            led = (led==0?0.2:0);
-        } ));
+    testButton.fall([]()->void {
+       eventQueue.call([]()->void {
+            led1 = !led1;
+            rLed = !rLed;
+            gLed = !gLed;
+            bLed = !bLed;
+        });
     });
 
     eventQueue.dispatch_forever();

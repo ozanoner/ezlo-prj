@@ -64,7 +64,7 @@ static const uint16_t uuid16_list[] = {BUTTON1_SERVICE_UUID};
 DigitalOut  ledBtnDisp(P0_9, 1);
 InterruptIn button(P0_10);
 InterruptIn button1(P0_30);
-// InterruptIn button2(P0_31);
+InterruptIn button2(P0_31);
 
 // InterruptIn button(P0_30);
 
@@ -142,6 +142,7 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
         onBleInitError(ble, error);
         return;
     }
+    DPRN("[info] bleInitComplete\n");
 
 // https://os.mbed.com/users/yasuyuki/code/mbed_BLE/docs/tip/main_8cpp_source.html
     if(ble.gap().setTxPower(4)!=BLE_ERROR_NONE) {
@@ -159,7 +160,12 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
 
     button.fall(buttonPressedCallback);
     button.rise(buttonReleasedCallback);
+    
+    button1.fall(buttonPressedCallback);
+    button1.rise(buttonReleasedCallback);
 
+    button2.fall(buttonPressedCallback);
+    button2.rise(buttonReleasedCallback);
     /* Setup primary service. */
     buttonServicePtr = new ButtonService(ble, false /* initial value for button pressed */);
 

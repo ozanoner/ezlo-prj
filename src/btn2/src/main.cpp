@@ -142,10 +142,10 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
 
     ble.gap().onDisconnection(disconnectionCallback);
 
-    button1.fall(button1PressedCallback);
-    button1.rise(button1ReleasedCallback);
-    button2.fall(button2PressedCallback);
-    button2.rise(button2ReleasedCallback);
+    // button1.fall(button1PressedCallback);
+    // button1.rise(button1ReleasedCallback);
+    // button2.fall(button2PressedCallback);
+    // button2.rise(button2ReleasedCallback);
 
     /* Setup primary service. */
     buttonServicePtr = new ButtonService(ble, false /* initial value for button pressed */);
@@ -187,9 +187,9 @@ int main()
     //     eventQueue.call(Callback<void()>([]()-> void { statusLed=!statusLed; } ));
     // });
 
-    testButton.fall([]()-> void{
-        eventQueue.call(Callback<void()>([]()-> void { statusLed=!statusLed; } ));
-    });
+    testButton.fall(toggleStatusLed);
+    button1.fall(toggleStatusLed);
+    button1.fall(toggleStatusLed);
 
 
     BLE &ble = BLE::Instance();

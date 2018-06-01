@@ -22,18 +22,23 @@ int goodParity(uint8_t* bp) {
 }
 
 class STPM01Driver: private NonCopyable<STPM01Driver> {
+public:
+    using NewDataCb_t = void (*)(const uint32_t*);
+
 protected:
     SPI& spi;
     DigitalOut& cs;
     DigitalOut& syn;
     uint32_t data[8];
+    NewDataCb_t newDataCb;
 public:
     STPM01Driver(SPI& s1, DigitalOut& cs1, DigitalOut& syn1): 
         spi(s1), cs(cs1), syn(syn1) {    }
 
-    void init() {
+    void init(NewDataCb_t cb=nullptr) {
         spi.format(8,3); // 8bits, pol=1, phase=1
         spi.frequency(32000000);
+        this->newDataCb = cb;
     }
     void read() {
         syn=0; cs=0; syn=1; // latching
@@ -60,7 +65,11 @@ public:
                 DPRN("(bad parity)\n");
             }
         }
+
+        if(this->newDataCb != nullptr)
+            this->newDataCb(this->data);
     }
+
 };
 
 
