@@ -40,82 +40,89 @@
 #include <mbed.h>
 #include "ble/BLE.h"
 #include "ble/Gap.h"
-#include "ButtonService.h"
+// #include "ButtonService.h"
 // #include "equeue.h"
 
+#include "BleConn.h"
 
 #include "SEGGER_RTT.h"
-#define DPRN(...) SEGGER_RTT_printf(0, __VA_ARGS__)
+// #define DPRN(...) SEGGER_RTT_printf(0, __VA_ARGS__)
 
-
+#include "HATestButton.h"
+#include "HAHardwareDefs.h"
 #include "HABleServiceDefs.h"
 #include "HAProvision.h"
-#define DEV_PROVISION_ID BTN1_ID2
+// #define DEV_PROVISION_ID BTN1_ID2
 
-static const uint8_t DEVICE_NAME[] = "Btn1-2";
-static const Gap::Address_t BLE_NW_ADDR = {HOME_ID, 0x00, 0x00, 0xE1, 0x01, DEV_PROVISION_ID};
-static const uint16_t uuid16_list[] = {BUTTON1_SERVICE_UUID};
+// static const uint8_t DEVICE_NAME[] = "Btn1-2";
+// static const Gap::Address_t BLE_NW_ADDR = {HOME_ID, 0x00, 0x00, 0xE1, 0x01, DEV_PROVISION_ID};
+// static const uint16_t uuid16_list[] = {BUTTON1_SERVICE_UUID};
 
 // DigitalOut  led1(LED1, 1);
 // DigitalOut  ledBtnDisp(LED2, 1);
 // DigitalOut ledConnected(LED3, 1);
 // InterruptIn button(BUTTON1);
 
-DigitalOut  ledBtnDisp(P0_9, 1);
-InterruptIn button(P0_10);
-InterruptIn button1(P0_30);
-InterruptIn button2(P0_31);
+// DigitalOut  ledBtnDisp(P0_9, 1);
+// InterruptIn button(P0_10);
+InterruptIn button1(BTN_BTN1);
+// InterruptIn button2(P0_31);
 
 // InterruptIn button(P0_30);
 
-static EventQueue eventQueue(/* event count */ 10 * EVENTS_EVENT_SIZE);
+static EventQueue eventQueue;
+HATestButton testBtn(eventQueue);
+BleConn bleConn(eventQueue);
 
+// ButtonService *buttonServicePtr;
 
-ButtonService *buttonServicePtr;
-
-void setButtonLed(bool on) {
-    ledBtnDisp = on?0:1;
-}
+// void setButtonLed(bool on) {
+//     ledBtnDisp = on?0:1;
+// }
 
 void buttonPressedCallback(void)
 {
-    eventQueue.call(Callback<void(bool)>(buttonServicePtr, &ButtonService::updateButtonState), true);
-    eventQueue.call(setButtonLed, true);
+    bleConn.updateButtonState(true);
+    testBtn.testLed =1;
+    // eventQueue.call(Callback<void(bool)>(buttonServicePtr, &ButtonService::updateButtonState), true);
+    // eventQueue.call(setButtonLed, true);
 }
 
 void buttonReleasedCallback(void)
 {
-    eventQueue.call(Callback<void(bool)>(buttonServicePtr, &ButtonService::updateButtonState), false);
-    eventQueue.call(setButtonLed, false);
+    bleConn.updateButtonState(false);
+    testBtn.testLed =0;
+    // eventQueue.call(Callback<void(bool)>(buttonServicePtr, &ButtonService::updateButtonState), false);
+    // eventQueue.call(setButtonLed, false);
 }
 
 
 
 
-void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
-{
-    BLE::Instance().gap().startAdvertising(); // restart advertising
-    DPRN("[info] disconnected\n");
-    // ledConnected = 1;
-}
+// void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
+// {
+//     BLE::Instance().gap().startAdvertising(); // restart advertising
+//     DPRN("[info] disconnected\n");
+//     // ledConnected = 1;
+// }
 
 
-void connectionCallback(const Gap::ConnectionCallbackParams_t *params) {
-    // ledConnected = 0;
-    DPRN("[info] connected\n");
-}
+// void connectionCallback(const Gap::ConnectionCallbackParams_t *params) {
+//     // ledConnected = 0;
+//     DPRN("[info] connected\n");
+// }
 
-void blinkCallback(void)
-{
-    // led1 = !led1; 
-    // led2 = !led2; 
-    ledBtnDisp = !ledBtnDisp;
-}
+// void blinkCallback(void)
+// {
+//     // led1 = !led1; 
+//     // led2 = !led2; 
+//     ledBtnDisp = !ledBtnDisp;
+// }
 
-void onBleInitError(BLE &ble, ble_error_t error)
-{
-    /* Initialization error handling should go here */
-}
+// void onBleInitError(BLE &ble, ble_error_t error)
+// {
+//     /* Initialization error handling should go here */
+// }
 
 /*
 void printMacAddress()
@@ -132,72 +139,77 @@ void printMacAddress()
 }
 */
 
-void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
-{
-    BLE&        ble   = params->ble;
-    ble_error_t error = params->error;
+// void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
+// {
+//     BLE&        ble   = params->ble;
+//     ble_error_t error = params->error;
 
-    if (error != BLE_ERROR_NONE) {
-        /* In case of error, forward the error handling to onBleInitError */
-        onBleInitError(ble, error);
-        return;
-    }
-    DPRN("[info] bleInitComplete\n");
+//     if (error != BLE_ERROR_NONE) {
+//         /* In case of error, forward the error handling to onBleInitError */
+//         onBleInitError(ble, error);
+//         return;
+//     }
+//     DPRN("[info] bleInitComplete\n");
 
-// https://os.mbed.com/users/yasuyuki/code/mbed_BLE/docs/tip/main_8cpp_source.html
-    if(ble.gap().setTxPower(4)!=BLE_ERROR_NONE) {
+// // https://os.mbed.com/users/yasuyuki/code/mbed_BLE/docs/tip/main_8cpp_source.html
+//     if(ble.gap().setTxPower(4)!=BLE_ERROR_NONE) {
 
-    }
+//     }
 
 
-    /* Ensure that it is the default instance of BLE */
-    if(ble.getInstanceID() != BLE::DEFAULT_INSTANCE) {
-        return;
-    }
+//     /* Ensure that it is the default instance of BLE */
+//     if(ble.getInstanceID() != BLE::DEFAULT_INSTANCE) {
+//         return;
+//     }
 
-    ble.gap().onDisconnection(disconnectionCallback);
-    ble.gap().onConnection(connectionCallback);
+//     ble.gap().onDisconnection(disconnectionCallback);
+//     ble.gap().onConnection(connectionCallback);
 
-    button.fall(buttonPressedCallback);
-    button.rise(buttonReleasedCallback);
+//     button.fall(buttonPressedCallback);
+//     button.rise(buttonReleasedCallback);
     
-    button1.fall(buttonPressedCallback);
-    button1.rise(buttonReleasedCallback);
+//     button1.fall(buttonPressedCallback);
+//     button1.rise(buttonReleasedCallback);
 
-    button2.fall(buttonPressedCallback);
-    button2.rise(buttonReleasedCallback);
-    /* Setup primary service. */
-    buttonServicePtr = new ButtonService(ble, false /* initial value for button pressed */);
+//     button2.fall(buttonPressedCallback);
+//     button2.rise(buttonReleasedCallback);
+//     /* Setup primary service. */
+//     buttonServicePtr = new ButtonService(ble, false /* initial value for button pressed */);
 
-    /* setup advertising */
-    ble.gap().setAddress(BLEProtocol::AddressType::PUBLIC, BLE_NW_ADDR);
-    ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
-    ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LIST_16BIT_SERVICE_IDS, (uint8_t *)uuid16_list, sizeof(uuid16_list));
-    ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LOCAL_NAME, (uint8_t *)DEVICE_NAME, sizeof(DEVICE_NAME));
-    ble.gap().setAdvertisingType(GapAdvertisingParams::ADV_CONNECTABLE_UNDIRECTED);
-    ble.gap().setAdvertisingInterval(1000); /* 1000ms. */
-    ble.gap().startAdvertising();
+//     /* setup advertising */
+//     ble.gap().setAddress(BLEProtocol::AddressType::PUBLIC, BLE_NW_ADDR);
+//     ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
+//     ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LIST_16BIT_SERVICE_IDS, (uint8_t *)uuid16_list, sizeof(uuid16_list));
+//     ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LOCAL_NAME, (uint8_t *)DEVICE_NAME, sizeof(DEVICE_NAME));
+//     ble.gap().setAdvertisingType(GapAdvertisingParams::ADV_CONNECTABLE_UNDIRECTED);
+//     ble.gap().setAdvertisingInterval(1000); /* 1000ms. */
+//     ble.gap().startAdvertising();
 
 
-    // printMacAddress();
-}
+//     // printMacAddress();
+// }
 
-void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context) {
-    BLE &ble = BLE::Instance();
-    eventQueue.call(Callback<void()>(&ble, &BLE::processEvents));
-}
+// void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context) {
+//     BLE &ble = BLE::Instance();
+//     eventQueue.call(Callback<void()>(&ble, &BLE::processEvents));
+// }
 
 int main()
 {
+    bleConn.init();
+
     // eventQueue.call_every(1000, blinkCallback);
 
-    SEGGER_RTT_ConfigUpBuffer(0, NULL, NULL, 0, SEGGER_RTT_MODE_NO_BLOCK_TRIM);
+    // SEGGER_RTT_ConfigUpBuffer(0, NULL, NULL, 0, SEGGER_RTT_MODE_NO_BLOCK_TRIM);
 
-    DPRN("started");
+    // DPRN("started");
 
-    BLE &ble = BLE::Instance();
-    ble.onEventsToProcess(scheduleBleEventsProcessing);
-    ble.init(bleInitComplete);
+    // BLE &ble = BLE::Instance();
+    // ble.onEventsToProcess(scheduleBleEventsProcessing);
+    // ble.init(bleInitComplete);
+
+    button1.fall(buttonPressedCallback);
+    button1.rise(buttonReleasedCallback);
 
     eventQueue.dispatch_forever();
 
