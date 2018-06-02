@@ -159,11 +159,11 @@ void BleConn::init(HADevShadow::ResponseCallbackT respCb, DebugPrintFuncT debugp
 
     ble_error_t error = ble.init(this, &BleConn::onInitComplete);
     if (error) {
-        BLE_LOG("[Error] BLE::init.");
+        // BLE_LOG("[Error] BLE::init.");
         return;
     }
-    evq.dispatch_forever();
-    BLE_LOG("[Info] BleConn::init completed");
+    // evq.dispatch_forever();
+    // BLE_LOG("[Info] BleConn::init completed");
 }
 
 void BleConn::scheduleBleEvents(BLE::OnEventsToProcessCallbackContext *context)
@@ -175,30 +175,30 @@ void BleConn::scheduleBleEvents(BLE::OnEventsToProcessCallbackContext *context)
      *  or connection initiation */
 void BleConn::onTimeout(const Gap::TimeoutSource_t source)
 {
-    switch (source)
-    {
-    case Gap::TIMEOUT_SRC_ADVERTISING:
-        BLE_LOG("[Warning] Stopped advertising early due to timeout parameter");
-        break;
-    case Gap::TIMEOUT_SRC_SCAN:
-        BLE_LOG("[Warning] Stopped scanning early due to timeout parameter");
-        break;
-    case Gap::TIMEOUT_SRC_CONN:
-        BLE_LOG("[Warning] Failed to connect after scanning %d advertisements");
-        // evq.call(this, &BleConn::print_performance);
-        // evq.call(this, &BleConn::demo_mode_end);
-        break;
-    default:
-        BLE_LOG("[Error] Unexpected timeout");
-        break;
-    }
+//     switch (source)
+//     {
+//     case Gap::TIMEOUT_SRC_ADVERTISING:
+//         BLE_LOG("[Warning] Stopped advertising early due to timeout parameter");
+//         break;
+//     case Gap::TIMEOUT_SRC_SCAN:
+//         BLE_LOG("[Warning] Stopped scanning early due to timeout parameter");
+//         break;
+//     case Gap::TIMEOUT_SRC_CONN:
+//         BLE_LOG("[Warning] Failed to connect after scanning %d advertisements");
+//         // evq.call(this, &BleConn::print_performance);
+//         // evq.call(this, &BleConn::demo_mode_end);
+//         break;
+//     default:
+//         BLE_LOG("[Error] Unexpected timeout");
+//         break;
+//     }
 }
 
 void BleConn::onInitComplete(BLE::InitializationCompleteCallbackContext *event)
 {
     if (event->error)
     {
-        BLE_LOG("[Error] BleConn::onInitComplete input event");
+        // BLE_LOG("[Error] BleConn::onInitComplete input event");
         return;
     }
 
@@ -223,12 +223,13 @@ void BleConn::onInitComplete(BLE::InitializationCompleteCallbackContext *event)
 
     // timeout: 0->disabled
     if (ble.gap().setScanParams(800, 400, 0, true) != BLE_ERROR_NONE) {
-        BLE_LOG("[Error] Gap::setScanParams");
+        // BLE_LOG("[Error] Gap::setScanParams");
         return;
     }
 
-    BLE_LOG("[Info] BleConn::onInitComplete completed. Scanning..");
+    // BLE_LOG("[Info] BleConn::onInitComplete completed. Scanning..");
     evq.call(this, &BleConn::scan);
+    // this->scan();
 }
 
 void BleConn::scan()
@@ -246,12 +247,7 @@ void BleConn::onAdDetected(const Gap::AdvertisementCallbackParams_t *params)
         // BLE_LOG("[Info] BleConn::onAdDetected. isProcessing..");
         return;
     }
-
-    // if(this->ble.gattClient().isServiceDiscoveryActive()) {
-    //     return;
-    // }
-
-    // home address 0xCC
+    
     if (params->peerAddr[HOME_ID_IDX] != HOME_ID) {
         // BLE_LOG("[Info] BleConn::onAdDetected. invalid home_id (%hhx)", 
         //     params->peerAddr[HOME_ID_IDX]);
@@ -321,7 +317,7 @@ void BleConn::onServiceDiscovery(const DiscoveredService *service)
         }
         else {
             // TODO: disconnect & disable to reconnect
-            BLE_LOG("[Warning] INVALID SERVICE(%x)", shortUUID);
+            // BLE_LOG("[Warning] INVALID SERVICE(%x)", shortUUID);
             // this->ble.gattClient().terminateServiceDiscovery();
         }
     }
@@ -332,27 +328,25 @@ void BleConn::onServiceDiscovery(const DiscoveredService *service)
 
 void BleConn::onServiceDiscoveryTermination(Gap::Handle_t connectionHandle)
 {
-    // BLE_LOG("terminated SD for handle %u", connectionHandle);
     BLE_LOG("[Info] BleConn::onServiceDiscoveryTermination");
 
     auto device = this->getDevice(connectionHandle);
     if(device == nullptr) {
         // not in the devices map
         BLE_LOG("[Error] no device with that connection handle");
-        return;
+    }
+    else {
+        while(!device->notifyList->empty()) {
+            auto discChar = device->notifyList->back();
+            discChar->discoverDescriptors(
+                makeFunctionPointer(this, &BleConn::onCharDescriptorDisc),
+                makeFunctionPointer(this, &BleConn::onCharDescriptorDiscTermination));
+            device->notifyList->pop_back();
+        }
     }
 
-    while(!device->notifyList->empty()) {
-        auto discChar = device->notifyList->back();
-        discChar->discoverDescriptors(
-            makeFunctionPointer(this, &BleConn::onCharDescriptorDisc),
-            makeFunctionPointer(this, &BleConn::onCharDescriptorDiscTermination));
-        device->notifyList->pop_back();
-    }
-
-    // Right place to stop. characteristic discovery has info about connection
-    // DONT USE actDevice from that point on
     isProcessing = false;
+    // this->scan();
     evq.call(this, &BleConn::scan);
 }
 
@@ -390,6 +384,29 @@ void BleConn::onCharacteristicDiscovery(const DiscoveredCharacteristic *discChar
                 printDeviceCharacteristics(*device);
             }
         break;
+        case DIMMER_SERVICE_UUID:
+            if(shortUUID == DIMMER_STATE_CHARACTERISTIC_UUID) 
+            {
+                BLE_LOG("[Info] BleConn::onCharacteristicDiscovery. dimmerstate characteristic");
+                device->connInfo->characteristics.emplace(shortUUID, 
+                    std::make_shared<const DiscoveredCharacteristic>(std::move(*discChar)));
+                device->notifyList->push_back(device->connInfo->characteristics[shortUUID]);
+                // continueWithDesc = true;
+                printDeviceCharacteristics(*device);
+            }
+        break;
+        case LIGHT_SERVICE_UUID:
+            if(shortUUID == LIGHT_STATE_CHARACTERISTIC_UUID) 
+            {
+                BLE_LOG("[Info] BleConn::onCharacteristicDiscovery. light characteristic");
+                device->connInfo->characteristics.emplace(shortUUID, 
+                    std::make_shared<const DiscoveredCharacteristic>(std::move(*discChar)));
+                device->notifyList->push_back(device->connInfo->characteristics[shortUUID]);
+                // continueWithDesc = true;
+                printDeviceCharacteristics(*device);
+            }
+        break;
+        
         default: // unknown device type??
         break;
     }

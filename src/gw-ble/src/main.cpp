@@ -31,6 +31,9 @@
 #include "EspConn.h"
 #include "BleConn.h"
 
+#include "mbed_stats.h"
+
+
 #include "SEGGER_RTT.h"
 // #include "json/src/json.hpp"
 // using json = nlohmann::json;
@@ -43,7 +46,7 @@ EspConn espConn(pc, eventQueue);
 BleConn bleConn(eventQueue);
 
 DigitalOut statusLed(STATUS_LED, 1);
-InterruptIn testButton(TEST_BTN);
+// Ticker statusToggler;
 
 
 void espDataReceivedCb(const char* data) {
@@ -68,20 +71,32 @@ void bleDebugPrint(const char* fmt, va_list arg) {
 void bleResponseCallback(const char* resp) {
     espConn.send(resp);
 }
+
+
+void printHeapStats(){ 
+    mbed_stats_heap_t heap_stats;
+    mbed_stats_heap_get(&heap_stats);
+    espConn.send("[info] heap: %lu / %lu", heap_stats.current_size, heap_stats.max_size);
+}
+
+void toggleStatusLed() {
+    statusLed = !statusLed;
+    printHeapStats();
+}
+
 int main()
 {
+    // statusToggler.attach(toggleStatusLed, 1);
     espConn.init(espDataReceivedCb);
-
+    
     // delay for 30 secs to start esp-conn
     // add callback to notify mqtt connected
-
-    eventQueue.call_in(30000, []()->void {
+    eventQueue.call_in(15000, []()->void {
         bleConn.init(bleResponseCallback, bleDebugPrint);
     });
+    // the following doesn't work after ~10 times
+    eventQueue.call_every(1000, toggleStatusLed);
     
-   
-
-
     eventQueue.dispatch_forever();
     return 0;
 }

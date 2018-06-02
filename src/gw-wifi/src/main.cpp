@@ -3,22 +3,25 @@
 #include <NrfConn.h>
 #include <WifiConn.h>
 #include <MqttConn.h>
+#include "StatusLed.h"
 
 using namespace std::placeholders;
 
 
 // const char* SSID = "breakingBad";
 // const char* SSID_PWD = "@@oy108-33";
-// const char* SSID = "ozanopo";
-// const char* SSID_PWD = "baa533f161fc";
+const char* SSID = "ozanopo";
+const char* SSID_PWD = "baa533f161fc";
 
-const char* SSID = "eraltd";
-const char* SSID_PWD = "1001934448";
+// const char* SSID = "eraltd";
+// const char* SSID_PWD = "1001934448";
 
 
 // const char* SSID = "eZlo_Smart_House";
 // const char* SSID_PWD = "smart16_inHouse";
 
+
+static StatusLed statusLed;
 
 const char* MQTT_SRV = "34.241.70.227";
 const int MQTT_PORT  = 1883;
@@ -49,7 +52,6 @@ void mqttDisconnectedCb();
 
 HardwareSerial Serial2(2);
 NrfConn nrfConn(Serial2);
-#define STATUS_LED 33
 
 WifiConn wifiConn;
 MqttConnConfigT mqttCfg {
@@ -61,12 +63,12 @@ MqttConn mqttConn;
 
 
 void setup() {
-    // pinMode(STATUS_LED, OUTPUT);
-    // digitalWrite(STATUS_LED, HIGH);
 
     delay(5000);
     Serial2.begin(9600, SERIAL_8N1);
     Serial.begin(9600, SERIAL_8N1);
+
+    statusLed.setBlinkPeriod(1000);
 
     wifiConn.init(SSID, SSID_PWD);
     wifiConn.setConnectedCallback(std::bind(wifiConnectedCb));
@@ -81,7 +83,7 @@ void setup() {
 
 
 void loop() {
-
+    statusLed.update();
     nrfConn.update();
     wifiConn.update();
     mqttConn.update();

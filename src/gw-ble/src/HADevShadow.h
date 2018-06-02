@@ -36,8 +36,6 @@ protected:
   std::unique_ptr<ConnInfoT> connInfo;
   std::deque<std::shared_ptr<const DiscoveredCharacteristic>>* notifyList;
 
-
-
   BLEProtocol::AddressBytes_t address;
   UUID::ShortUUIDBytes_t serviceId;
 

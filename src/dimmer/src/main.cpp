@@ -50,7 +50,7 @@ int main(void)
     pm.init(energyCb);
     bleConn.init();
     
-    eventQueue.call_every(1000, []()->void {
+    eventQueue.call_every(5000, []()->void {
         pm.read();
     });
 

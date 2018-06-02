@@ -24,30 +24,35 @@
 #include "LightSensorService.h"
 #include "Opt3001.h"
 
+#include "HAProvision.h"
+#include "HABleServiceDefs.h"
 #include "HAHardwareDefs.h"
 #include "SEGGER_RTT.h"
 
-DigitalOut  led1(STATUS_LED, 1);
-InterruptIn testBtn(TEST_BTN);
+#include "HATestButton.h"
+
 I2C i2c(P0_12, P0_11);
 Opt3001 sensor(i2c);
 
-const static char     DEVICE_NAME[] = "LightSensor";
-static const uint16_t uuid16_list[] = {LightSensorService::LIGHT_SERVICE_UUID};
+#define DEV_PROVISION_ID LS_ID8
 
+
+static const uint8_t DEVICE_NAME[] = "LS_ID8";
+static const Gap::Address_t BLE_NW_ADDR = {HOME_ID, 0x00, 0x00, 0xE1, 0x01, DEV_PROVISION_ID};
+static const uint16_t SERVICE_UUID_LIST[] = {LIGHT_SERVICE_UUID};
+
+using namespace std;
 static LightSensorService *sensorServicePtr;
 
 static EventQueue eventQueue(/* event count */ 10 * EVENTS_EVENT_SIZE);
+
+HATestButton testButton(eventQueue);
 
 void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
 {
     BLE::Instance().gap().startAdvertising();
 }
 
-void blinkCallback(void)
-{
-    led1 = !led1; /* Do blinky on LED1 to indicate system aliveness. */
-}
 
 /**
  * This function is called when the ble initialization process has failled
@@ -78,12 +83,18 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
 
     ble.gap().onDisconnection(disconnectionCallback);
 
+    // if(ble.gap().setTxPower(4)!=BLE_ERROR_NONE) {
+    //     DPRN("[error] setTxPower");
+    // }
+
     /* Setup primary service */
     sensorServicePtr = new LightSensorService(ble);
 
     /* setup advertising */
+    ble.gap().setAddress(BLEProtocol::AddressType::PUBLIC, BLE_NW_ADDR);
+
     ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
-    ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LIST_16BIT_SERVICE_IDS, (uint8_t *)uuid16_list, sizeof(uuid16_list));
+    ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LIST_16BIT_SERVICE_IDS, (uint8_t *)SERVICE_UUID_LIST, sizeof(SERVICE_UUID_LIST));
     ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LOCAL_NAME, (uint8_t *)DEVICE_NAME, sizeof(DEVICE_NAME));
     ble.gap().setAdvertisingType(GapAdvertisingParams::ADV_CONNECTABLE_UNDIRECTED);
     ble.gap().setAdvertisingInterval(1000); /* 1000ms. */
@@ -91,7 +102,6 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
 
 }
 
-bool sensorRead=false;
 // Opt3001Base sensor; // dummy values
 
 void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context) {
@@ -101,25 +111,10 @@ void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context)
 
 int main(void)
 {
-    led1 = 1;
 	sensor.init();
-
-/*
-    Ticker ticker;
-    ticker.attach(periodicCallback, 1);
-
-	auto f = [&r=sensorRead]()->void{r=true;};
-	ticker.attach(f, 5);
-    */
-
-    // eventQueue.call_every(500, blinkCallback);
-
-    testBtn.fall([]()->void {
-        led1 = !led1;
-    });
     auto funcReadSensor = [&sensor]()->void{
         auto val = sensor.readLux();
-        DPRN("[info] lux:%f\n", val);
+        DPRN("[info] lux:%x\n", val);
         sensorServicePtr->updateSensorState(val);
     };
     eventQueue.call_every(5000, funcReadSensor);
@@ -129,24 +124,4 @@ int main(void)
     ble.init(bleInitComplete);
 
     eventQueue.dispatch_forever();
-
-/*
-    BLE &ble = BLE::Instance();
-    ble.init(bleInitComplete);
-
-    while (ble.hasInitialized()  == false) { };
-
-    while (true) {
-		try {
-        	if(sensorRead) {
-				sensorServicePtr->updateSensorState(sensor.readLux());
-				sensorRead=false;
-			}
-		}
-		catch(...) {
-			// exception handler
-		}
-        ble.waitForEvent();
-    }
-    */
 }

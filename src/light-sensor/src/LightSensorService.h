@@ -17,10 +17,12 @@
 #ifndef LightSensorService_h_
 #define LightSensorService_h_
 
+#include "HABleServiceDefs.h"
+
 class LightSensorService {
 public:
-    const static uint16_t LIGHT_SERVICE_UUID              = 0xA600;
-    const static uint16_t LIGHT_STATE_CHARACTERISTIC_UUID = 0xA601;
+    // const static uint16_t LIGHT_SERVICE_UUID              = 0xA600;
+    // const static uint16_t LIGHT_STATE_CHARACTERISTIC_UUID = 0xA601;
 
     LightSensorService(BLEDevice &_ble) :
         ble(_ble), lightState(LIGHT_STATE_CHARACTERISTIC_UUID, nullptr, GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_NOTIFY)
@@ -34,14 +36,19 @@ public:
         return lightState.getValueHandle();
     }
 
-	void updateSensorState(float val) {
-		uint32_t v = (uint32_t)val;
-        ble.gattServer().write(lightState.getValueHandle(), (uint8_t *)(&v), sizeof(uint32_t));
+	// void updateSensorState(float val) {
+	// 	uint32_t v = (uint32_t)val;
+    //     ble.gattServer().write(lightState.getValueHandle(), (uint8_t *)(&v), sizeof(uint32_t));
+    // }
+
+    void updateSensorState(uint16_t val) {
+        ble.gattServer().write(lightState.getValueHandle(), (uint8_t *)(&val), sizeof(uint16_t));
     }
 
 private:
     BLEDevice                         &ble;
-    ReadOnlyGattCharacteristic<uint32_t>  lightState;
+    // ReadOnlyGattCharacteristic<uint32_t>  lightState;
+    ReadOnlyGattCharacteristic<uint16_t>  lightState;
 };
 
 #endif /* #ifndef __BLE_LED_SERVICE_H__ */

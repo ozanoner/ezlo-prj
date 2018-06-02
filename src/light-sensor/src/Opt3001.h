@@ -32,7 +32,8 @@ public:
 		DPRN("isReady: %d\n", this->ready);
 		return this->ready;
 	}
-	float readLux() override {
+	// float readLux() override {
+	uint16_t readLux() override {
 		if(!this->ready)
 			return -1;
 		// refer to datasheet
@@ -49,9 +50,10 @@ public:
 			return -1;
 		}
 		DPRN("lux: %x-%x", resp[0], resp[1]);
-		int exp = (0xf0 & (uint8_t)resp[1])>>4;
-		int man = (0x0f & (uint8_t)resp[1])<<8 & (uint8_t)resp[0];
-		return 0.01f * pow(2, exp) * man;
+		return *reinterpret_cast<uint16_t*>(resp);
+		// int exp = (0xf0 & (uint8_t)resp[1])>>4;
+		// int man = (0x0f & (uint8_t)resp[1])<<8 & (uint8_t)resp[0];
+		// return 0.01f * pow(2, exp) * man;
 	}
 private:
 	// https://os.mbed.com/handbook/I2C

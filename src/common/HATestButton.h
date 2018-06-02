@@ -8,7 +8,7 @@
 #include <functional>
 
 
-class HATestButton: private mbed::NonCopyable<BleConn> {
+class HATestButton: private mbed::NonCopyable<HATestButton> {
 private:
     void onButtonPress() {
         this->evq.call([&]()-> void{
