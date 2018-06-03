@@ -24,9 +24,13 @@
 
 // LEDs
 #define LED_WHITE_PWM P0_8
+
 #define LEDPWR_SDA	P0_12
 #define LEDPWR_SCL	P0_11
 #define LEDPWR_ADDR 0x40
 
+#define RLED_PWM	P0_8
+#define GLED_PWM	P0_19
+#define BLED_PWM	P0_20
 
 #endif

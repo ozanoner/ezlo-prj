@@ -20,153 +20,43 @@
 #include <mbed.h>
 #include "ble/BLE.h"
 #include "ble/Gap.h"
-#include "LEDService.h"
+// #include "LEDService.h"
+#include "BleConn.h"
 
+#include "HATestButton.h"
 #include "HAHardwareDefs.h"
 #include "HAProvision.h"
-#include "SoftPwmOut.h"
+#include "SoftPwm1.h"
 
 // SoftPWM
 // https://os.mbed.com/users/komaida424/code/SoftPWM/
 
 
 
-DigitalOut  statusLed(STATUS_LED, 1);
-InterruptIn testButton(TEST_BTN);
 
-// DigitalOut  ledBtnDisp(P0_9, 0);
-// DigitalOut  ledBtnDisp(P0_8, 0);
+static EventQueue eventQueue;
 
-// DigitalOut led(P0_8, 1);
+HATestButton testButton(eventQueue);
 
-// SoftPwmOut led(LED_WHITE_PWM);
-// PwmOut l2(P0_19);
-// PwmOut l3(P0_20);
+// DigitalOut led(testButton.testLed);
+DigitalOut led(LED_WHITE_PWM);
+const static uint8_t MAX_DUTY=50;
+const static uint8_t FREQ_US=100;
+SoftPwm1 rLed(led);
 
-// InterruptIn button(P0_10);
+BleConn bleConn(eventQueue, MAX_DUTY);
 
-
-
-DigitalOut led1(STATUS_LED, 1);
-DigitalOut rLed(P0_8, 1), gLed(P0_19, 1), bLed(P0_20, 1);
-
-
-// const static char     DEVICE_NAME[] = "LED_ID4";
-static const uint16_t uuid16_list[] = {LED_SERVICE_UUID};
-
-LEDService *ledServicePtr;
-
-static EventQueue eventQueue(/* event count */ 10 * EVENTS_EVENT_SIZE);
-
-
-void toggleActLed() {
-    // led = !led; 
-    // ledBtnDisp = !ledBtnDisp;
-}
-
-
-void buttonPressedCallback(void)
-{
-    // eventQueue.call(setButtonLed, actOnOff);
-    // eventQueue.call(toggleActLed);
-    // ledBtnDisp = 1;
-}
-
-void buttonReleasedCallback(void)
-{
-    // eventQueue.call(setButtonLed, false);
-    // ledBtnDisp = 0;
-}
-
-void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
-{
-    BLE::Instance().gap().startAdvertising();
-}
-
-void blinkCallback(void)
-{
-    // ledBtnDisp = !ledBtnDisp;
-}
-
-
-void onDataWrittenCallback(const GattWriteCallbackParams *params) {
-    if ((params->handle == ledServicePtr->getValueHandle()) && (params->len == 1)) {
-        uint8_t val = *(params->data);
-        val= val<0?0: (val>20?20: val);
-        // led = ((float)val)/100;
-    }
-}
-
-void onBleInitError(BLE &ble, ble_error_t error)
-{
-    /* Initialization error handling should go here */
-}
-
-void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
-{
-    BLE&        ble   = params->ble;
-    ble_error_t error = params->error;
-
-    if (error != BLE_ERROR_NONE) {
-        /* In case of error, forward the error handling to onBleInitError */
-        onBleInitError(ble, error);
-        return;
-    }
-
-
-    /* Ensure that it is the default instance of BLE */
-    if(ble.getInstanceID() != BLE::DEFAULT_INSTANCE) {
-        return;
-    }
-    
-    ble.gap().setAddress(Gap::AddressType_t::PUBLIC, BLE_NW_ADDR);
-    ble.gap().onDisconnection(disconnectionCallback);
-    ble.gattServer().onDataWritten(onDataWrittenCallback);
-
-    bool initialValueForLEDCharacteristic = false;
-    ledServicePtr = new LEDService(ble, initialValueForLEDCharacteristic);  
-
-    /* setup advertising */
-    ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
-    ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LIST_16BIT_SERVICE_IDS, (uint8_t *)uuid16_list, sizeof(uuid16_list));
-    ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LOCAL_NAME, (uint8_t *)DEVICE_NAME, sizeof(DEVICE_NAME));
-    ble.gap().setAdvertisingType(GapAdvertisingParams::ADV_CONNECTABLE_UNDIRECTED);
-    ble.gap().setAdvertisingInterval(1000); /* 1000ms. */
-    ble.gap().startAdvertising();
-}
-
-void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context) {
-    BLE &ble = BLE::Instance();
-    eventQueue.call(Callback<void()>(&ble, &BLE::processEvents));
+void setLedDuty(uint8_t duty) {
+    rLed.start_us(FREQ_US, duty>MAX_DUTY? MAX_DUTY:duty);
 }
 
 int main(void)
 {
+    setLedDuty(50);
 
-    // eventQueue.call_every(1000, blinkCallback);
-
-
-    BLE &ble = BLE::Instance();
-    ble.onEventsToProcess(scheduleBleEventsProcessing);
-    ble.init(bleInitComplete);
-
-    // button.fall(buttonPressedCallback);
-    // button.rise(buttonReleasedCallback);
-
-    // led.period(0.000001);
-    // led = 0.2;
-
-   
-    /* test */
-    testButton.fall([]()->void {
-       eventQueue.call([]()->void {
-            led1 = !led1;
-            rLed = !rLed;
-            gLed = !gLed;
-            bLed = !bLed;
-        });
-    });
-
+    bleConn.init();
+    bleConn.setDataWrittenCb(setLedDuty);
+    
     eventQueue.dispatch_forever();
 
 }

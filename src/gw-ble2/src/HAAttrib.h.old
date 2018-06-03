@@ -1,0 +1,28 @@
+#ifndef HAAttrib_h_
+#define HAAttrib_h_
+
+#include <mbed.h>
+// #include "json/src/json.hpp"
+// using json = nlohmann::json;
+
+struct HAAttrib {
+    uint8_t peerAddr;
+    Gap::Handle_t connHandle;
+    GattAttribute::Handle_t charHandle;
+    GattAttribute::Handle_t valueHandle;
+    uint32_t val;
+
+    // HAAttrib(): peerAddr(0), connHandle(0), charHandle(0), 
+    //     valueHandle(0), val(0) { }
+    // std::string toString() {
+    //     json j;
+    //     j["peer"] = this->peerAddr;
+    //     j["conn"] = this->connHandle;
+    //     j["char"] = this->charHandle;
+    //     j["valh"] = this->valueHandle;
+    //     j["val"] = this->val;
+    //     return j.dump();
+    // } 
+};
+
+#endif
