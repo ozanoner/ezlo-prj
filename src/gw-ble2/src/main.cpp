@@ -22,23 +22,18 @@
     // USBTX = P0_10,
     // USBRX = P0_11,
 
-#include "HAHardwareDefs.h"
-
 
 #include <mbed_events.h>
 #include <mbed.h>
 #include "PinNames.h"
+
+#include "HAHardwareDefs.h"
 #include "EspConn.h"
 #include "BleConn.h"
 
-#include "mbed_stats.h"
-
-
 #include "SEGGER_RTT.h"
-// #include "json/src/json.hpp"
-// using json = nlohmann::json;
 
-
+// #define BLE_DEBUG_PRINT
 
 static EventQueue eventQueue;
 Serial pc(UART2_TX, UART2_RX, 9600);
@@ -46,25 +41,16 @@ EspConn espConn(pc, eventQueue);
 BleConn bleConn(eventQueue);
 
 DigitalOut statusLed(STATUS_LED, 1);
-// Ticker statusToggler;
 
 
 void espDataReceivedCb(const char* data) {
-    // DPRN("[info] in callback");
-    // statusLed = !statusLed;
-    
     bleConn.userCommand(data);
-
-    // auto root = json::parse(*data);
-
-    // int devId = root["dev"]; // specific device id
-    // int stateId = root["state"]; // state enum, ON_OFF, DIMMER etc
-    // int cmd = root["cmd"]; // get=0 | set=1
-    // int setValue = root["val"]; // state specific value if cmd=1
 }
 
 void bleDebugPrint(const char* fmt, va_list arg) {
+#ifdef BLE_DEBUG_PRINT
     espConn.send(fmt, arg);
+#endif
     DPRN(fmt, arg);
 }
 
@@ -72,32 +58,20 @@ void bleResponseCallback(const char* resp) {
     espConn.send(resp);
 }
 
-
-void printHeapStats(){ 
-    mbed_stats_heap_t heap_stats;
-    mbed_stats_heap_get(&heap_stats);
-    espConn.send("[info] heap: %lu / %lu", heap_stats.current_size, heap_stats.max_size);
-}
-
 void toggleStatusLed() {
     statusLed = !statusLed;
-    printHeapStats();
 }
 
 int main()
 {
-    // statusToggler.attach(toggleStatusLed, 1);
     espConn.init(espDataReceivedCb);
     
-    // delay for 30 secs to start esp-conn
-    // add callback to notify mqtt connected
     eventQueue.call_in(15000, []()->void {
         bleConn.init(bleResponseCallback, bleDebugPrint);
     });
-    // the following doesn't work after ~10 times
     eventQueue.call_every(1000, toggleStatusLed);
-    
     eventQueue.dispatch_forever();
+
     return 0;
 }
 

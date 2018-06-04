@@ -9,7 +9,6 @@
 #include "ble/DiscoveredService.h"
 #include "BLEProtocol.h"
 #include <cstdarg>
-// #include "HADevShadow.h"
 #include <vector>
 #include <map>
 
@@ -46,12 +45,6 @@ private:
     BLE& ble;
     events::EventQueue& evq;
     bool isProcessing;
-    // int scanCnt;
-
-
-    // map devices over connection handles
-
-    // std::shared_ptr<HAAttrib> actDevice;
 
     void scheduleBleEvents(BLE::OnEventsToProcessCallbackContext *context);
 
@@ -104,7 +97,7 @@ void BleConn::userCommand(const char* data) {
     uint16_t size=0;
     if(cmd) {
         val = root["val"]; // state specific value if cmd=1
-        size = root["size"]; // state specific value if cmd=1
+        size = root["size"]; 
     }
     if(cmd) {
         if(size>0) {
@@ -168,8 +161,6 @@ void BleConn::onTimeout(const Gap::TimeoutSource_t source)
             break;
         case Gap::TIMEOUT_SRC_CONN:
             BLE_LOG("[Warning] Failed to connect after scanning %d advertisements");
-            // evq.call(this, &BleConn::print_performance);
-            // evq.call(this, &BleConn::demo_mode_end);
             break;
         default:
             BLE_LOG("[Error] Unexpected timeout");
@@ -250,24 +241,6 @@ void BleConn::onConnected(const Gap::ConnectionCallbackParams_t *conn)
 {
     BLE_LOG("[Info] BleConn::onConnected (%x)", conn->handle);
 
-    // this->actDevice = std::make_shared<HAAttrib>();
-    // this->actDevice->peerAddr = conn->peerAddr[DEV_ID_IDX];
-    // this->actDevice->connHandle = conn->handle;
-
-    // auto devId = conn->peerAddr[DEV_ID_IDX];
-    // if(this->deviceExists(devId)) {
-    //     this->actDevice = this->devicesById[devId];
-    // }
-    // else {
-    //     this->actDevice = std::make_shared<HADevShadow>();
-    //     std::memcpy(this->actDevice->address, conn->peerAddr, BLEProtocol::ADDR_LEN);
-    //     this->actDevice->setResponseCallback(this->respCb);
-    //     this->devicesById.emplace(devId, this->actDevice);
-    //     this->devices.emplace(conn->handle, this->actDevice);
-    // }
-
-    // this->actDevice->onConnected(conn->handle);
-
     json j;
     j["evt"] = BLE_EVENT_onConnected;
     j["peer"] = conn->peerAddr[DEV_ID_IDX];
@@ -288,9 +261,6 @@ void BleConn::onDisconnected(const Gap::DisconnectionCallbackParams_t *event)
     j["conn"] = event->handle;
     this->respCb(j.dump().c_str());
 
-    // if(this->deviceExists(event->handle)) {
-    //     this->devices[event->handle]->onDisconnected();
-    // }
 }
 
 
@@ -362,56 +332,6 @@ void BleConn::onCharacteristicDiscovery(const DiscoveredCharacteristic* discChar
 
     if(discChar->getProperties().notify())
         discoveredChars.push_back(*discChar);
-
-
-    // auto device = this->getDevice(discChar->getConnectionHandle());
-    // if(device == nullptr) {
-    //     // not in the devices map
-    //     BLE_LOG("[Error] no device with that connection handle");
-    //     return;
-    // }
-
-    // auto shortUUID = discChar->getUUID().getShortUUID();
-    // // bool continueWithDesc=false;
-    // switch(device->deviceType()) {
-    //     case BUTTON1_SERVICE_UUID:
-    //         if(shortUUID == BUTTON_STATE_CHARACTERISTIC_UUID
-    //             || shortUUID == BATTERY_STATE_CHARACTERISTIC_UUID) 
-    //         {
-    //             BLE_LOG("[Info] BleConn::onCharacteristicDiscovery. button or battery characteristic");
-    //             device->connInfo->characteristics.emplace(shortUUID, 
-    //                 std::make_shared<const DiscoveredCharacteristic>(std::move(*discChar)));
-    //             device->notifyList->push_back(device->connInfo->characteristics[shortUUID]);
-    //             // continueWithDesc = true;
-    //             printDeviceCharacteristics(*device);
-    //         }
-    //     break;
-    //     case DIMMER_SERVICE_UUID:
-    //         if(shortUUID == DIMMER_STATE_CHARACTERISTIC_UUID) 
-    //         {
-    //             BLE_LOG("[Info] BleConn::onCharacteristicDiscovery. dimmerstate characteristic");
-    //             device->connInfo->characteristics.emplace(shortUUID, 
-    //                 std::make_shared<const DiscoveredCharacteristic>(std::move(*discChar)));
-    //             device->notifyList->push_back(device->connInfo->characteristics[shortUUID]);
-    //             // continueWithDesc = true;
-    //             printDeviceCharacteristics(*device);
-    //         }
-    //     break;
-    //     case LIGHT_SERVICE_UUID:
-    //         if(shortUUID == LIGHT_STATE_CHARACTERISTIC_UUID) 
-    //         {
-    //             BLE_LOG("[Info] BleConn::onCharacteristicDiscovery. light characteristic");
-    //             device->connInfo->characteristics.emplace(shortUUID, 
-    //                 std::make_shared<const DiscoveredCharacteristic>(std::move(*discChar)));
-    //             device->notifyList->push_back(device->connInfo->characteristics[shortUUID]);
-    //             // continueWithDesc = true;
-    //             printDeviceCharacteristics(*device);
-    //         }
-    //     break;
-        
-    //     default: // unknown device type??
-    //     break;
-    // }
    
 }
 
@@ -422,13 +342,6 @@ void BleConn::onCharDescriptorDisc(const CharacteristicDescriptorDiscovery::Disc
     {
         BLE_LOG("[Info] CCCD found");
         cccdList[p->characteristic.getUUID().getShortUUID()] = p->descriptor.getAttributeHandle(); 
-        // auto device = this->getDevice(p->characteristic.getConnectionHandle());
-        // if(device == nullptr) {
-        //     BLE_LOG("[Error] no device with that connection handle");
-        //     return;
-        // }
-        // device->connInfo->lastCccdHandle = p->descriptor.getAttributeHandle();
-        // // BLE_LOG("_CCCD found: %02x\n", device->connInfo->lastCccdHandle);
         ble.gattClient().terminateCharacteristicDescriptorDiscovery(p->characteristic);
     }
 }
@@ -454,20 +367,12 @@ void BleConn::onCharDescriptorDiscTermination(const CharacteristicDescriptorDisc
 // https://docs.mbed.com/docs/ble-api/en/master/api/structGattHVXCallbackParams.html
 void BleConn::onHVX(const GattHVXCallbackParams *p)
 {
-    // _event_queue.call(this, &GwDevice::hvx_send_data, p->connHandle, p->handle, *p->data);
-    // this->hvx_send_data(p->connHandle, p->handle, *p->data);
-    // BLE_LOG("hvx_handler: conn:%x attr:%x data:%x\n", p->connHandle, p->handle, *p->data);
-    BLE_LOG("[Info] BleConn::onHVX (data:%x)", *p->data);
-
-    // auto device = this->getDevice(p->connHandle);
-    // if(device == nullptr)
-    //     return;
-    // device->onHVX(p);
+    BLE_LOG("[Info] BleConn::onHVX (data:%x)", *(p->data));
 
     json j;
     j["evt"] = BLE_EVENT_onHVX;
     j["conn"] = p->connHandle;
-    j["char"] = p->handle;
+    j["valh"] = p->handle;
     if(p->len == 4) {
         uint32_t val = *(reinterpret_cast<const uint32_t*>(p->data));
         j["val"] = val; 
@@ -479,14 +384,7 @@ void BleConn::onHVX(const GattHVXCallbackParams *p)
 
 void BleConn::onDataRead(const GattReadCallbackParams *p)
 {
-    // BLE_LOG("onDataRead: conn:%x attr:%x\n", p->connHandle, p->handle);
-    // esp32_comm.printf("onDataRead: conn:%x attr:%x\n", p->connHandle, p->handle);
-    BLE_LOG("[Info] BleConn::onDataRead (data:%x)", *p->data);
-
-    // auto device = this->getDevice(p->connHandle);
-    // if(device == nullptr)
-    //     return;
-    // device->onDataRead(p);
+    BLE_LOG("[Info] BleConn::onDataRead (data:%x)", *(p->data));
 
     if(p->status == BLE_ERROR_NONE) {
         json j;
@@ -509,13 +407,7 @@ void BleConn::onDataRead(const GattReadCallbackParams *p)
 
 void BleConn::onDataWritten(const GattWriteCallbackParams *p)
 {
-    // BLE_LOG("onDataWritten: conn:%x attr:%x, status:%d\n", p->connHandle, p->handle, p->status);
     BLE_LOG("[Info] BleConn::onDataWritten (status:%d)", p->status);
-    // esp32_comm.printf("onDataWritten: conn:%x attr:%x, status:%d\n", p->connHandle, p->handle, p->status);
-    // auto device = this->getDevice(p->connHandle);
-    // if(device == nullptr)
-    //     return;
-    // device->onDataWritten(p);
 }
 
 #endif

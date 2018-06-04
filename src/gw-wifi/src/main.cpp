@@ -1,9 +1,12 @@
 
 
-#include <NrfConn.h>
-#include <WifiConn.h>
-#include <MqttConn.h>
+#include "NrfConn.h"
+#include "WifiConn.h"
+#include "MqttConn.h"
 #include "StatusLed.h"
+#include "HAMessBroker.h"
+
+#include <cstring>
 
 using namespace std::placeholders;
 
@@ -60,6 +63,7 @@ MqttConnConfigT mqttCfg {
 };
 MqttConn mqttConn;
 
+HAMessBroker messBroker;
 
 
 void setup() {
@@ -87,7 +91,6 @@ void loop() {
     nrfConn.update();
     wifiConn.update();
     mqttConn.update();
-    
 
     switch(status) {
         case StatusEnum::HA_WIFI_PENDING:
@@ -117,14 +120,21 @@ void mqttCb(char* topic, byte* payload, unsigned int length) {
     for(i=0; i<length; i++)
         mqttReceiveBuffer[i] = (char)payload[i];
     mqttReceiveBuffer[i]=0;
-
-    nrfConn.write(mqttReceiveBuffer);
     Serial.printf("[info] mqtt: %s\n", mqttReceiveBuffer);
+
+    // nrfConn.write(mqttReceiveBuffer);
+    // Serial.printf("[info] mqtt: %s\n", mqttReceiveBuffer);
+
+    // nrfConn.write(messBroker.fromMqtt(std::string(mqttReceiveBuffer)).c_str());
 }
 
 void nrfReceiveCallback(const char* data) {
     Serial.printf("[info] nrf: %s\n", data);
-    mqttConn.publish(data);
+
+    String buff = String(data);
+    const char* ret = messBroker.fromNrf(buff);
+    if(ret[0]!=0)
+        mqttConn.publish(ret);
 }
 
 void wifiConnectedCb() {
