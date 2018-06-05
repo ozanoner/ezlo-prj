@@ -5,16 +5,17 @@
 #include "MqttConn.h"
 #include "StatusLed.h"
 #include "HAMessBroker.h"
+#include "ProgressDisp.h"
 
 #include <cstring>
 
 using namespace std::placeholders;
 
 
-// const char* SSID = "breakingBad";
-// const char* SSID_PWD = "@@oy108-33";
-const char* SSID = "ozanopo";
-const char* SSID_PWD = "baa533f161fc";
+const char* SSID1 = "breakingBad";
+const char* SSID_PWD1 = "@@oy108-33";
+const char* SSID2 = "ozanopo";
+const char* SSID_PWD2 = "baa533f161fc";
 
 // const char* SSID = "eraltd";
 // const char* SSID_PWD = "1001934448";
@@ -39,7 +40,6 @@ enum class StatusEnum {
     HA_MQTT_PENDING,
     HA_READY
 };
-
 StatusEnum status = StatusEnum::HA_WIFI_PENDING;
 
 
@@ -50,17 +50,21 @@ void mqttConnectedCb();
 void mqttDisconnectedCb();
 
 
+MqttConnConfigT mqttCfg {
+    mqttConnectedCb, mqttDisconnectedCb, 
+    MQTT_CL_ID, MQTT_TOPIC_CMD, MQTT_TOPIC_STATUS, MQTT_SRV, MQTT_PORT
+};
+
+
 // gpio 16/17
 // https://github.com/espressif/arduino-esp32/blob/master/cores/esp32/HardwareSerial.cpp
 
 HardwareSerial Serial2(2);
 NrfConn nrfConn(Serial2);
 
-WifiConn wifiConn;
-MqttConnConfigT mqttCfg {
-    mqttConnectedCb, mqttDisconnectedCb, 
-    MQTT_CL_ID, MQTT_TOPIC_CMD, MQTT_TOPIC_STATUS, MQTT_SRV, MQTT_PORT
-};
+ProgressDisp progress;
+WifiConn wifiConn(SSID2, SSID_PWD2);
+
 MqttConn mqttConn;
 
 HAMessBroker messBroker;
@@ -73,8 +77,6 @@ void setup() {
     Serial.begin(9600, SERIAL_8N1);
 
     statusLed.setBlinkPeriod(1000);
-
-    wifiConn.init(SSID, SSID_PWD);
     wifiConn.setConnectedCallback(std::bind(wifiConnectedCb));
 
     nrfConn.setNrfCallback(std::bind(nrfReceiveCallback, _1));
@@ -82,46 +84,36 @@ void setup() {
     mqttConn.init(mqttCfg);
     mqttConn.setMqttCallback(mqttCb);
 
-    Serial.printf("[info] started");
+    Serial.printf("[info] started. waiting wifi..\n");
+    progress.enable();
 }
 
 
 void loop() {
     statusLed.update();
-    nrfConn.update();
     wifiConn.update();
+    progress.update();
     mqttConn.update();
-
-    switch(status) {
-        case StatusEnum::HA_WIFI_PENDING:
-            if(!(millis()%500))
-                Serial.print(".");
-        break;
-
-        case StatusEnum::HA_MQTT_PENDING:
-            if(!(millis()%500))
-                Serial.print(".");
-        break;
-
-        case StatusEnum::HA_READY:
-
-        default:
-        break;
-    }
+    nrfConn.update();
 }
 
 
 void mqttCb(char* topic, byte* payload, unsigned int length) {
-    if(length>=SERIAL_BUFF_SIZE) // unexpected mess len
+    if(length>=SERIAL_BUFF_SIZE) { // unexpected mess len
+        Serial.printf("[error] too long message from MQTT\n");
         return;
+    }
 
-    char mqttReceiveBuffer[SERIAL_BUFF_SIZE];
-    int i;
-    for(i=0; i<length; i++)
-        mqttReceiveBuffer[i] = (char)payload[i];
-    mqttReceiveBuffer[i]=0;
-    Serial.printf("[info] mqtt: %s\n", mqttReceiveBuffer);
+    char data[length+1];
+    memcpy(data, payload, length);
+    data[length]=0;
 
+    String buff = String(data);
+    const char* ret = messBroker.fromMqtt(buff);
+    if(ret[0]!=0) {
+        nrfConn.write(ret);
+        Serial.printf("[info] nrfConn.write: %s\n", ret);
+    }
     // nrfConn.write(mqttReceiveBuffer);
     // Serial.printf("[info] mqtt: %s\n", mqttReceiveBuffer);
 
@@ -140,12 +132,14 @@ void nrfReceiveCallback(const char* data) {
 void wifiConnectedCb() {
     status = StatusEnum::HA_MQTT_PENDING;
     Serial.printf("[info] MQTT connecting\n");
+    progress.enable();
     mqttConn.connect(true);
 }
 
 void mqttConnectedCb() {
     status = StatusEnum::HA_READY;
     Serial.printf("[info] MQTT connected\n");
+    progress.disable();
 }
 void mqttDisconnectedCb() {
     status = StatusEnum::HA_MQTT_PENDING;

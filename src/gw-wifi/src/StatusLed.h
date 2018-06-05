@@ -11,9 +11,9 @@ private:
     unsigned long nextUpdate;
     uint16_t period;
 public:
-    StatusLed(): period(0) {
+    StatusLed(): period(0), state(false) {
         pinMode(STATUS_LED, OUTPUT);
-        this->setState(true);
+        digitalWrite(STATUS_LED, this->state);
     }
     // 0 disables blink
     void setBlinkPeriod(uint16_t blinkPeriod_ms=0) {
@@ -24,16 +24,13 @@ public:
         // blink disabled
         if(this->period == 0)
             return;
-        if(this->nextUpdate < millis()) {
-            this->setState(!this->state);
-            this->nextUpdate = millis()+this->period;
+        auto now = millis();
+        if(this->nextUpdate < now) {
+            this->state = !this->state;
+            digitalWrite(STATUS_LED, this->state);
+            this->nextUpdate = now+this->period;
         }
     }
-    void setState(bool s) {
-        this->state = s;
-        digitalWrite(STATUS_LED, state);
-    }
-    
 };
 
 #endif

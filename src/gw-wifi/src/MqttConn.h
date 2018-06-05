@@ -32,24 +32,23 @@ private:
 
     MqttConnConfigT* config;
 
-    bool connectEnabled;
+    bool enabled;
     unsigned long nextConn;
     
 public:
 
-MqttConn(): connectEnabled(false), nextConn(0) { 
+MqttConn(): enabled(false), nextConn(0) { 
     this->mqtt = new PubSubClient(wifi);
 }
 
 ~MqttConn() {
-    mqtt->disconnect();
+    this->mqtt->disconnect();
     delete mqtt;
 }
 
 void init(MqttConnConfigT& cfg) {
-
     this->config = &cfg;
-    mqtt->setServer(cfg.serverAddress, cfg.serverPort);
+    this->mqtt->setServer(cfg.serverAddress, cfg.serverPort);
     // Serial.printf("[info] mqtt server: %s %d\n", cfg.serverAddress, cfg.serverPort);
 }
 
@@ -58,13 +57,14 @@ void setMqttCallback(MQTT_CALLBACK_SIGNATURE) {
 }
 
 void connect(bool force=false) {
-    if(!force && (mqtt->connected() || nextConn>millis())) {
-        // if(mqtt->connected()) {
-        //     Serial.printf("[info] mqtt already connected\n");
-        // }
+    if(force)
+        this->mqtt->disconnect();
+    if(this->mqtt->connected()) 
         return;
-    }
-    connectEnabled = true;
+    if(this->nextConn>millis()) 
+        return;
+
+    this->enabled = true;
     if(mqtt->connect(config->clientId)) {
         mqtt->subscribe(config->commandTopic);
         if(config->connectedCallback != nullptr)
@@ -78,7 +78,7 @@ void connect(bool force=false) {
 }
 
 void disconnect() {
-    connectEnabled = false;
+    enabled = false;
     mqtt->disconnect();
     if(config->disconnectedCallback!=nullptr) {
         config->disconnectedCallback();
@@ -86,13 +86,14 @@ void disconnect() {
 }
 
 void update() {
-    if(connectEnabled && !mqtt->loop()) {
+    if(enabled && !mqtt->loop()) {
         this->connect();
     }
 }
 
 void publish(const char* data) {
-    mqtt->publish(config->statusTopic, data);
+    if(mqtt->connected())
+        mqtt->publish(config->statusTopic, data);
 }
 
 };

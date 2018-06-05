@@ -29,7 +29,7 @@ public:
 		// default config, datasheet@page 21
 		char cmd[3]= {0x01, 0xc4, 0x10};
 		this->ready = this->port.write(I2C_ADDR, cmd, sizeof(cmd))==0;
-		DPRN("isReady: %d\n", this->ready);
+		// DPRN("isReady: %d\n", this->ready);
 		return this->ready;
 	}
 	// float readLux() override {
@@ -40,16 +40,16 @@ public:
 		// to command result reg @addr 0x0
 		char cmd[1]= {0x0};
 		if(this->port.write(I2C_ADDR, cmd, 1)) {
-			DPRN("write failed\n");
+			// DPRN("write failed\n");
 			return -1;
 		}
 
 		char resp[2];
 		if(this->port.read(I2C_ADDR, resp, 2)) {
-			DPRN("read failed\n");
+			// DPRN("read failed\n");
 			return -1;
 		}
-		DPRN("lux: %x-%x", resp[0], resp[1]);
+		// DPRN("lux: %x-%x", resp[0], resp[1]);
 		return *reinterpret_cast<uint16_t*>(resp);
 		// int exp = (0xf0 & (uint8_t)resp[1])>>4;
 		// int man = (0x0f & (uint8_t)resp[1])<<8 & (uint8_t)resp[0];

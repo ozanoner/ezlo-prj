@@ -33,6 +33,18 @@ using json = nlohmann::json;
 static const uint8_t DEVICE_NAME[] = "GW_ID1";
 static const Gap::Address_t BLE_NW_ADDR = {HOME_ID, 0x00, 0x00, 0xE1, 0x01, DEV_PROVISION_ID};
 
+
+Gap::Address_t WHITE_LIST[8] = {
+{HOME_ID, 0x00, 0x00, 0xE1, 0x01, BTN1_ID2},
+{HOME_ID, 0x00, 0x00, 0xE1, 0x01, BTN2_ID3},
+{HOME_ID, 0x00, 0x00, 0xE1, 0x01, LED_ID4},
+{HOME_ID, 0x00, 0x00, 0xE1, 0x01, RGBLED_ID5},
+{HOME_ID, 0x00, 0x00, 0xE1, 0x01, PLUG_ID6},
+{HOME_ID, 0x00, 0x00, 0xE1, 0x01, DIMMER_ID7},
+{HOME_ID, 0x00, 0x00, 0xE1, 0x01, LS_ID8}
+};
+
+
 using namespace std;
 
 using DebugPrintFuncT = void (*)(const char*, va_list);
@@ -65,10 +77,13 @@ private:
     void onHVX(const GattHVXCallbackParams *p);
     void onDataRead(const GattReadCallbackParams *p);
     void onDataWritten(const GattWriteCallbackParams *p);
+
     DebugPrintFuncT debugPrint;
     void dbg(const char*, ...);
 
     Callback<void(const char*)> respCb;
+
+    static bool isTrackedChar(UUID::ShortUUIDBytes_t charU);
 
     // void printDeviceCharacteristics(const HADevShadow& dev);
 public:
@@ -88,28 +103,38 @@ public:
 
 
 void BleConn::userCommand(const char* data) {
-    auto root = json::parse(data);
+    BLE_LOG("[info] BleConn::userCommand received (%s)", data);
+    try {
+        auto root = json::parse(data);
+        Gap::Handle_t connHandle = root["conn"]; // connection handle
+        // value handle
+        GattAttribute::Handle_t handle = root["handle"]; 
+        uint8_t cmd = root["cmd"]; // get=0 | set=1
+        uint32_t val=0;
+        uint16_t size=0;
+        if(cmd) {
+            val = root["val"]; // state specific value if cmd=1
+            size = root["size"]; 
+        }
+        if(cmd) {
+            if(size>0) {
+                ble_error_t ret = this->ble.gattClient().write(GattClient::GATT_OP_WRITE_REQ, 
+                    connHandle, handle, size, reinterpret_cast<const uint8_t*>(&val));
+                if(ret!=BLE_ERROR_NONE)
+                    BLE_LOG("[error] BleConn::userCommand write failed (%d)", ret);
+            }
+            else {
+                BLE_LOG("[error] BleConn::userCommand invalid command");
+            }
 
-    Gap::Handle_t connHandle = root["conn"]; // connection handle
-    GattAttribute::Handle_t charHandle = root["char"]; // characteristic handle
-    uint8_t cmd = root["cmd"]; // get=0 | set=1
-    uint32_t val=0;
-    uint16_t size=0;
-    if(cmd) {
-        val = root["val"]; // state specific value if cmd=1
-        size = root["size"]; 
+        } else {
+            ble_error_t ret = this->ble.gattClient().read(connHandle, handle, 0);
+            if(ret!=BLE_ERROR_NONE)
+                BLE_LOG("[error] BleConn::userCommand read failed");
+        }
     }
-    if(cmd) {
-        if(size>0) {
-            this->ble.gattClient().write(GattClient::GATT_OP_WRITE_REQ, 
-                connHandle, charHandle, size, reinterpret_cast<const uint8_t*>(&val));
-        }
-        else {
-            BLE_LOG("[error] BleConn::userCommand invalid command");
-        }
-
-    } else {
-        this->ble.gattClient().read(connHandle, charHandle, 0);
+    catch(...) {
+        BLE_LOG("[error] BleConn::userCommand exception occured");
     }
 }
 
@@ -138,7 +163,7 @@ void BleConn::init(Callback<void(const char*)> respCb, DebugPrintFuncT debugpf=n
 
     ble_error_t error = ble.init(this, &BleConn::onInitComplete);
     if (error) {
-        BLE_LOG("[Error] BLE::init.");
+        BLE_LOG("[Error] BLE::init (%d)", error);
         return;
     }
 }
@@ -152,20 +177,21 @@ void BleConn::scheduleBleEvents(BLE::OnEventsToProcessCallbackContext *context)
      *  or connection initiation */
 void BleConn::onTimeout(const Gap::TimeoutSource_t source)
 {
-    switch (source) {
-        case Gap::TIMEOUT_SRC_ADVERTISING:
-            BLE_LOG("[Warning] Stopped advertising early due to timeout parameter");
-            break;
-        case Gap::TIMEOUT_SRC_SCAN:
-            BLE_LOG("[Warning] Stopped scanning early due to timeout parameter");
-            break;
-        case Gap::TIMEOUT_SRC_CONN:
-            BLE_LOG("[Warning] Failed to connect after scanning %d advertisements");
-            break;
-        default:
-            BLE_LOG("[Error] Unexpected timeout");
-            break;
-    }
+    BLE_LOG("[Warning] BleConn::onTimeout (%d)", source);
+    // switch (source) {
+    //     case Gap::TIMEOUT_SRC_ADVERTISING:
+    //         BLE_LOG("[Warning] Stopped advertising early due to timeout parameter");
+    //         break;
+    //     case Gap::TIMEOUT_SRC_SCAN:
+    //         BLE_LOG("[Warning] Stopped scanning early due to timeout parameter");
+    //         break;
+    //     case Gap::TIMEOUT_SRC_CONN:
+    //         BLE_LOG("[Warning] Failed to connect after scanning %d advertisements");
+    //         break;
+    //     default:
+    //         BLE_LOG("[Error] Unexpected timeout");
+    //         break;
+    // }
 }
 
 void BleConn::onInitComplete(BLE::InitializationCompleteCallbackContext *event)
@@ -176,41 +202,39 @@ void BleConn::onInitComplete(BLE::InitializationCompleteCallbackContext *event)
         return;
     }
 
+    ble_error_t err;
+
     ble.gap().setAddress(Gap::AddressType_t::PUBLIC, BLE_NW_ADDR);
-    
+    if(ble.gap().setTxPower(4)!=BLE_ERROR_NONE) {
+        BLE_LOG("[error] setTxPower");
+    }
+    ble.gap().setScanParams();
     /* all calls are serialised on the user thread through the event queue */
     ble.gap().onConnection(this, &BleConn::onConnected);
     ble.gap().onDisconnection(this, &BleConn::onDisconnected);
+    
+    Gap::Whitelist_t whitelist {reinterpret_cast<BLEProtocol::Address_t*>(WHITE_LIST), 7, 8};
+    err = ble.gap().setWhitelist(whitelist);
+    if(err != BLE_ERROR_NONE) {
+        BLE_LOG("[error] setWhitelist");
+    }
 
-    ble.gattClient().onHVX(
-        makeFunctionPointer(this, &BleConn::onHVX));
-
-    ble.gattClient().onDataRead(
-        makeFunctionPointer(this, &BleConn::onDataRead));
-
-    ble.gattClient().onDataWritten(
-        makeFunctionPointer(this, &BleConn::onDataWritten));
-
+    ble.gattClient().onHVX(makeFunctionPointer(this, &BleConn::onHVX));
+    ble.gattClient().onDataRead(makeFunctionPointer(this, &BleConn::onDataRead));
+    ble.gattClient().onDataWritten(makeFunctionPointer(this, &BleConn::onDataWritten));
     ble.gattClient().onServiceDiscoveryTermination(
         makeFunctionPointer(this, &BleConn::onServiceDiscoveryTermination));
 
-
-    // timeout: 0->disabled
-    if (ble.gap().setScanParams(800, 400, 0, true) != BLE_ERROR_NONE) {
-        BLE_LOG("[Error] Gap::setScanParams");
-        return;
-    }
-
     // BLE_LOG("[Info] BleConn::onInitComplete completed. Scanning..");
     evq.call(this, &BleConn::scan);
-    // this->scan();
 }
 
 void BleConn::scan()
 {
     BLE_LOG("[Info] Gap::startScan");
-    if(ble.gap().startScan(this, &BleConn::onAdDetected)!= BLE_ERROR_NONE) {
-        BLE_LOG("[Error] Gap::startScan");
+    ble_error_t err = ble.gap().startScan(this, &BleConn::onAdDetected);
+    if(err != BLE_ERROR_NONE) {
+        BLE_LOG("[Error] Gap::startScan (%d)", err);
         return;
     }
 }
@@ -230,8 +254,13 @@ void BleConn::onAdDetected(const Gap::AdvertisementCallbackParams_t *params)
     isProcessing = true;
 
     BLE_LOG("[Info] Gap::connect");
-    if(ble.gap().connect(params->peerAddr, 
-            BLEProtocol::AddressType_t::PUBLIC, nullptr, nullptr)) {
+
+    // Gap::ConnectionParams_t p {0x0006, 0x0C80, 0x01F3, 0x0C80};
+    
+    ble_error_t err = ble.gap().connect(params->peerAddr, 
+            BLEProtocol::AddressType_t::PUBLIC, nullptr, nullptr);
+            // BLEProtocol::AddressType_t::PUBLIC, &p, nullptr);
+    if(err != BLE_ERROR_NONE) {
         isProcessing = false;
         BLE_LOG("[Error] Gap::connect");
     }
@@ -254,7 +283,7 @@ void BleConn::onConnected(const Gap::ConnectionCallbackParams_t *conn)
 
 void BleConn::onDisconnected(const Gap::DisconnectionCallbackParams_t *event)
 {
-    BLE_LOG("[Warning] BleConn::onDisconnected");
+    BLE_LOG("[Warning] BleConn::onDisconnected (%x)", event->reason);
 
     json j;
     j["evt"] = BLE_EVENT_onDisconnected;
@@ -263,35 +292,43 @@ void BleConn::onDisconnected(const Gap::DisconnectionCallbackParams_t *event)
 
 }
 
+bool BleConn::isTrackedChar(UUID::ShortUUIDBytes_t charU) {
+    return (charU & 0xA100)==0xA100 || (charU & 0xA200)==0xA200 ;
+}
 
 void BleConn::onServiceDiscovery(const DiscoveredService* service)
 {
-    BLE_LOG("[Info] BleConn::onServiceDiscovery");
-    // short uuid expected
-    if (service->getUUID().shortOrLong() == UUID::UUID_TYPE_SHORT)
-    {
-        auto shortUUID = service->getUUID().getShortUUID();
-        if(shortUUID == BUTTON1_SERVICE_UUID 
-            || shortUUID == BUTTON1_SERVICE_UUID
-            || shortUUID == BUTTON2_SERVICE_UUID
-            || shortUUID == LIGHT_SERVICE_UUID
-            || shortUUID == LED_SERVICE_UUID
-            || shortUUID == RGBLED_SERVICE_UUID
-            || shortUUID == PLUG_SERVICE_UUID
-            || shortUUID == DIMMER_SERVICE_UUID) 
-        {
-            // this->actDevice->serviceId = shortUUID;
-            BLE_LOG("[Info] DISCOVERED SERVICE(%x)", shortUUID);
-        }
-        else {
-            // TODO: disconnect & disable to reconnect
-            // BLE_LOG("[Warning] INVALID SERVICE(%x)", shortUUID);
-            // this->ble.gattClient().terminateServiceDiscovery();
-        }
+    auto shortUUID = service->getUUID().getShortUUID();
+    if(BleConn::isTrackedChar(shortUUID)) {
+        BLE_LOG("[Info] DISCOVERED SERVICE(%x)", shortUUID);
     }
-    else {
-        // this->ble.gattClient().terminateServiceDiscovery();
-    }
+
+    // BLE_LOG("[Info] BleConn::onServiceDiscovery");
+    // // short uuid expected
+    // if (service->getUUID().shortOrLong() == UUID::UUID_TYPE_SHORT)
+    // {
+    //     auto shortUUID = service->getUUID().getShortUUID();
+    //     if(shortUUID == BUTTON1_SERVICE_UUID 
+    //         || shortUUID == BUTTON1_SERVICE_UUID
+    //         || shortUUID == BUTTON2_SERVICE_UUID
+    //         || shortUUID == LIGHT_SERVICE_UUID
+    //         || shortUUID == LED_SERVICE_UUID
+    //         || shortUUID == RGBLED_SERVICE_UUID
+    //         || shortUUID == PLUG_SERVICE_UUID
+    //         || shortUUID == DIMMER_SERVICE_UUID) 
+    //     {
+    //         // this->actDevice->serviceId = shortUUID;
+    //         BLE_LOG("[Info] DISCOVERED SERVICE(%x)", shortUUID);
+    //     }
+    //     else {
+    //         // TODO: disconnect & disable to reconnect
+    //         // BLE_LOG("[Warning] INVALID SERVICE(%x)", shortUUID);
+    //         // this->ble.gattClient().terminateServiceDiscovery();
+    //     }
+    // }
+    // else {
+    //     // this->ble.gattClient().terminateServiceDiscovery();
+    // }
 }
 
 void BleConn::onServiceDiscoveryTermination(Gap::Handle_t connectionHandle)
@@ -390,7 +427,7 @@ void BleConn::onDataRead(const GattReadCallbackParams *p)
         json j;
         j["evt"] = BLE_EVENT_onDataRead;
         j["conn"] = p->connHandle;
-        j["char"] = p->handle;
+        j["valh"] = p->handle;
         if(p->len == 4) {
             uint32_t val = *(reinterpret_cast<const uint32_t*>(p->data));
             j["val"] = val; 

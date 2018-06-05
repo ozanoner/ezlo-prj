@@ -115,6 +115,7 @@ int main(void)
 {
 	sensor.init();
     bleConn.init();
+    DPRN("[info] init completed\n");
 
     auto funcReadSensor = [&sensor]()->void{
         auto val = sensor.readLux();

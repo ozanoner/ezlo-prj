@@ -27,24 +27,29 @@ private:
 
 public:
     const char* fromNrf(String&);
-
-    std::string fromMqtt(const std::string& mess) {
-        return {};
-    }
+    const char* fromMqtt(String&);
 };
 
 const char* HAMessBroker::fromNrf(String& buff) {
     StaticJsonBuffer<256> inputBuff;
     JsonObject& inputJ = inputBuff.parseObject(buff);
     if (!inputJ.success()) {
-        Serial.println("[error] fromNrf: parseObject() failed");
-        buff="{\"err_code\":1}";
-        return buff.c_str();
+        Serial.println("[error] HAMessBroker::fromNrf: parseObject() failed");
+        // buff="{\"err_code\":1}";
+        // return buff.c_str();
+        return "";
     }
+
+    if(inputJ.containsKey("ble_debug")) {
+        // Serial.printf("[ble_debug] %s\n", inputJ["ble_debug"]);
+        return "";
+    }
+
     if(!inputJ.containsKey("evt")) {
-        Serial.println("[error] fromNrf: parseObject() failed");
-        buff="{\"err_code\":1}";
-        return buff.c_str();
+        Serial.println("[error] HAMessBroker::fromNrf: evt key expected ");
+        // buff="{\"err_code\":1}";
+        // return buff.c_str();
+        return "";
     }
     int event = inputJ["evt"];
 
@@ -64,6 +69,14 @@ const char* HAMessBroker::fromNrf(String& buff) {
                 this->byId[devId]->devId = devId;
                 this->byId[devId]->connHandle = connH;
             }
+            else {
+                uint16_t oldConnH = this->byId[devId]->connHandle;
+                if(oldConnH != connH && this->byConn.find(oldConnH)!=this->byConn.end()) {
+                    this->byConn.erase(oldConnH);
+                    Serial.printf("[info] oldConnH deleted (%d)\n", oldConnH);
+                }
+            }
+            
             this->byId[devId]->connected = true;
             this->byConn[connH] = this->byId[devId];
             outputJ["peer"] = devId;
@@ -121,7 +134,7 @@ const char* HAMessBroker::fromNrf(String& buff) {
                 }
                 else {
                     skip=true;
-                    Serial.printf("[error] invalid value handle %d\n", valH);
+                    Serial.printf("[error] invalid value handle (%d)\n", valH);
                 }
             }
         }
@@ -131,11 +144,15 @@ const char* HAMessBroker::fromNrf(String& buff) {
             return buff.c_str();
     }
 
+    if(skip)
+        return "";
     buff="";
-    if(!skip) {
-        outputJ["evt"] = event;
-        outputJ.printTo(buff);
-    }
+    // if(!skip) {
+    //     outputJ["evt"] = event;
+    //     outputJ.printTo(buff);
+    // }
+    outputJ["evt"] = event;
+    outputJ.printTo(buff);
     return buff.c_str();
 }
 
@@ -163,4 +180,70 @@ uint16_t HAMessBroker::getCharU(std::shared_ptr<HADev_t> rec, uint16_t valH) con
     while(it!=rec->attribs.end() && it->valHandle!=valH) it++;
     return it==rec->attribs.end() ? 0: it->charUuid;
 }
+
+
+// peer, char, val
+const char* HAMessBroker::fromMqtt(String& buff) {
+    StaticJsonBuffer<256> inputBuff;
+    JsonObject& inputJ = inputBuff.parseObject(buff);
+    if (!inputJ.success()) {
+        Serial.println("[error] fromMqtt: parseObject() failed");
+        return "";
+    }
+
+    uint16_t devId = inputJ["peer"];
+    uint16_t charU = inputJ["char"];
+    bool read=true;
+
+    uint16_t connH;
+    if(this->byId.find(devId)==this->byId.end()) {
+        Serial.printf("[error] no such device (%d)\n", devId);
+        return "";
+    }
+    else {
+        connH = this->byId[devId]->connHandle;
+    }
+
+    auto it = this->byId[devId]->attribs.begin();
+    while(it!=this->byId[devId]->attribs.end() && it->charUuid!=charU) it++;
+    if(it == this->byId[devId]->attribs.end()) {
+        Serial.printf("[error] no such charUuuid (%d)/(%x)\n", devId, charU);
+        return "";
+    }
+
+    if(inputJ.containsKey("val")) {
+        if(charU == LED_STATE_CHARACTERISTIC_UUID
+                || charU == DIMMER_STATE_CHARACTERISTIC_UUID
+                || charU == RGBLED_STATE_CHARACTERISTIC_UUID
+                || charU == PLUG_STATE_CHARACTERISTIC_UUID) {
+            read=false;
+        }
+    }
+
+    StaticJsonBuffer<256> outputBuff;
+    JsonObject& outputJ = outputBuff.createObject();
+    outputJ["conn"] = connH;
+    outputJ["handle"] = it->valHandle;
+    if(read) {
+        outputJ["cmd"]=0;
+    }
+    else {
+        outputJ["cmd"]=1;
+        outputJ["val"] = inputJ["val"];
+        if(charU == RGBLED_STATE_CHARACTERISTIC_UUID) {
+            outputJ["size"] = 4;
+        }
+        else {
+            outputJ["size"] = 1;
+        }
+    }
+
+
+    buff = "";
+    outputJ.printTo(buff);
+    return buff.c_str();
+}
+
+
+
 #endif

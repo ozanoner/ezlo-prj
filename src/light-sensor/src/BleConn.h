@@ -38,6 +38,9 @@ private:
 
     // data communication
     // void onDataWritten(const GattWriteCallbackParams* params);
+    void onDataRead(const GattReadCallbackParams* params);
+    void onDataSent(unsigned params);
+    
 public:
     BleConn(EventQueue& evq) : evq(evq), ble(BLE::Instance()), 
         lightState(LIGHT_STATE_CHARACTERISTIC_UUID, nullptr, GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_NOTIFY)
@@ -98,6 +101,14 @@ void BleConn::onBleInitError(BLE &ble, ble_error_t error)
     /* Initialization error handling should go here */
 }
 
+void BleConn::onDataRead(const GattReadCallbackParams* params) {
+    DPRN("[info] BleConn::onDataRead. (%x)-(%x)\n", params->handle, params->offset);
+}
+void BleConn::onDataSent(unsigned count) {
+    DPRN("[info] BleConn::onDataSent. (%u)\n", count);
+}
+
+
 void BleConn::onInitComplete(BLE::InitializationCompleteCallbackContext *event)
 {
     if (event->error)
@@ -113,7 +124,7 @@ void BleConn::onInitComplete(BLE::InitializationCompleteCallbackContext *event)
     }
 
     if(ble.gap().setTxPower(4)!=BLE_ERROR_NONE) {
-        DPRN("[error] setTxPower");
+        DPRN("[error] setTxPower\n");
     }
     ble.gap().setAddress(Gap::AddressType_t::PUBLIC, BLE_NW_ADDR);
     
@@ -126,6 +137,8 @@ void BleConn::onInitComplete(BLE::InitializationCompleteCallbackContext *event)
     GattCharacteristic* charTable[] = {&this->lightState};
     GattService service(LIGHT_SERVICE_UUID, charTable, sizeof(charTable) / sizeof(GattCharacteristic *));
     ble.gattServer().addService(service);
+    ble.gattServer().onDataRead(this, &BleConn::onDataRead);
+    ble.gattServer().onDataSent(this, &BleConn::onDataSent);
 
     /* setup advertising */
     ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
@@ -143,7 +156,7 @@ void BleConn::onInitComplete(BLE::InitializationCompleteCallbackContext *event)
 
 void BleConn::onConnected(const Gap::ConnectionCallbackParams_t *conn)
 {
-    DPRN("[Info] BleConn::onConnected (%x)", conn->handle);
+    DPRN("[Info] BleConn::onConnected (%x)\n", conn->handle);
     this->ble.gap().stopAdvertising();
 }
 

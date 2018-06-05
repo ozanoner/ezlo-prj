@@ -26,6 +26,9 @@
 #include <mbed_events.h>
 #include <mbed.h>
 #include "PinNames.h"
+#include <string>
+#include <sstream>
+#include <cstdio>
 
 #include "HAHardwareDefs.h"
 #include "EspConn.h"
@@ -48,10 +51,26 @@ void espDataReceivedCb(const char* data) {
 }
 
 void bleDebugPrint(const char* fmt, va_list arg) {
-#ifdef BLE_DEBUG_PRINT
-    espConn.send(fmt, arg);
-#endif
-    DPRN(fmt, arg);
+    int buffs = vsnprintf(0,0,fmt, arg);
+    if(buffs<0) {
+        DPRN(fmt, arg);
+        DPRN("[error] bleDebugPrint failed\n");
+        return;
+    }
+    ++buffs;
+    char buff[buffs];
+    vsnprintf(buff, buffs, fmt, arg);
+    if(buffs>128)
+        buff[128]=0; // limit to 128
+
+    for(int i=0; i<buffs && buff[i]; i++) {
+        if(buff[i] == '"')
+            buff[i] = ' ';
+    }
+    DPRN(buff);
+    
+    const char* newFmt = "{\"ble_debug\":\"%s\"}";    
+    espConn.send(newFmt, buff);
 }
 
 void bleResponseCallback(const char* resp) {
@@ -66,7 +85,7 @@ int main()
 {
     espConn.init(espDataReceivedCb);
     
-    eventQueue.call_in(15000, []()->void {
+    eventQueue.call_in(30000, []()->void {
         bleConn.init(bleResponseCallback, bleDebugPrint);
     });
     eventQueue.call_every(1000, toggleStatusLed);
