@@ -208,7 +208,16 @@ void BleConn::onInitComplete(BLE::InitializationCompleteCallbackContext *event)
     if(ble.gap().setTxPower(4)!=BLE_ERROR_NONE) {
         BLE_LOG("[error] setTxPower");
     }
-    ble.gap().setScanParams();
+
+
+    err = ble.gap().setScanParams(800, 400, 0, true);
+    if(err != BLE_ERROR_NONE) {
+        BLE_LOG("[error] setScanParams (%d)", err);
+    }
+
+    // WARNING!! The following code stops multi peripheral connection!!  
+    // ble.gap().setScanParams();
+    // ble.gap().setActiveScanning(true);
     /* all calls are serialised on the user thread through the event queue */
     ble.gap().onConnection(this, &BleConn::onConnected);
     ble.gap().onDisconnection(this, &BleConn::onDisconnected);
@@ -218,6 +227,7 @@ void BleConn::onInitComplete(BLE::InitializationCompleteCallbackContext *event)
     if(err != BLE_ERROR_NONE) {
         BLE_LOG("[error] setWhitelist");
     }
+    // ble.gap().setScanningPolicyMode(Gap::SCAN_POLICY_FILTER_ALL_ADV);
 
     ble.gattClient().onHVX(makeFunctionPointer(this, &BleConn::onHVX));
     ble.gattClient().onDataRead(makeFunctionPointer(this, &BleConn::onDataRead));
@@ -231,10 +241,25 @@ void BleConn::onInitComplete(BLE::InitializationCompleteCallbackContext *event)
 
 void BleConn::scan()
 {
+    if(this->isProcessing) {
+        BLE_LOG("[Info] Gap::startScan exit. in process");
+        return;
+    }
+
+    ble_error_t err;
+
     BLE_LOG("[Info] Gap::startScan");
-    ble_error_t err = ble.gap().startScan(this, &BleConn::onAdDetected);
+    
+    err = ble.gap().startScan(this, &BleConn::onAdDetected);
     if(err != BLE_ERROR_NONE) {
-        BLE_LOG("[Error] Gap::startScan (%d)", err);
+        // if scanning, err == BLE_ERROR_PARAM_OUT_OF_RANGE
+        if(err != BLE_ERROR_PARAM_OUT_OF_RANGE) {
+            BLE_LOG("[Error] Gap::startScan (%d)", err);
+            err = ble.gap().stopScan();
+            if(err != BLE_ERROR_NONE) {
+                BLE_LOG("[Error] Gap::stopScan (%d)", err);
+            }
+        }
         return;
     }
 }
@@ -262,7 +287,7 @@ void BleConn::onAdDetected(const Gap::AdvertisementCallbackParams_t *params)
             // BLEProtocol::AddressType_t::PUBLIC, &p, nullptr);
     if(err != BLE_ERROR_NONE) {
         isProcessing = false;
-        BLE_LOG("[Error] Gap::connect");
+        BLE_LOG("[Error] Gap::connect (%d)", err);
     }
 }
 
@@ -290,6 +315,7 @@ void BleConn::onDisconnected(const Gap::DisconnectionCallbackParams_t *event)
     j["conn"] = event->handle;
     this->respCb(j.dump().c_str());
 
+    evq.call(this, &BleConn::scan);
 }
 
 bool BleConn::isTrackedChar(UUID::ShortUUIDBytes_t charU) {
@@ -417,6 +443,7 @@ void BleConn::onHVX(const GattHVXCallbackParams *p)
         j["val"] = *(p->data); 
     }
     this->respCb(j.dump().c_str());
+    evq.call(this, &BleConn::scan);
 }
 
 void BleConn::onDataRead(const GattReadCallbackParams *p)
@@ -439,12 +466,13 @@ void BleConn::onDataRead(const GattReadCallbackParams *p)
     else {
         BLE_LOG("[error] BleConn::onDataRead (err:%d)", p->error_code);
     }
-
+    evq.call(this, &BleConn::scan);
 }
 
 void BleConn::onDataWritten(const GattWriteCallbackParams *p)
 {
     BLE_LOG("[Info] BleConn::onDataWritten (status:%d)", p->status);
+    evq.call(this, &BleConn::scan);
 }
 
 #endif

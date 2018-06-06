@@ -69,8 +69,18 @@ int main(void)
     // SEGGER_RTT_ConfigUpBuffer(0, NULL, NULL, 0, SEGGER_RTT_MODE_NO_BLOCK_TRIM);
     // setLedDuty(50);
 
+    testButton.setPressCb([]()-> void {
+        rled = gled = bled = !rled;
+    });
+
     bleConn.init();
-    bleConn.setDataWrittenCb(setLedDuty);
+    // bleConn.setDataWrittenCb(setLedDuty);
+
+    bleConn.setDataWrittenCb([](uint32_t i)-> void {
+        rled = i & 0xFF000000;
+        gled = i & 0x00FF0000;
+        bled = i & 0x0000FF00;
+    });
     
     eventQueue.dispatch_forever();
 

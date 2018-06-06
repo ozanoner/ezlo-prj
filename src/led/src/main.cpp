@@ -40,7 +40,7 @@ HATestButton testButton(eventQueue);
 
 // DigitalOut led(testButton.testLed);
 DigitalOut led(LED_WHITE_PWM);
-const static uint8_t MAX_DUTY=50;
+const static uint8_t MAX_DUTY=100;
 const static uint8_t FREQ_US=100;
 SoftPwm1 rLed(led);
 
@@ -52,10 +52,15 @@ void setLedDuty(uint8_t duty) {
 
 int main(void)
 {
-    setLedDuty(50);
+    // setLedDuty(90);
 
+    testButton.setPressCb([]()-> void {
+        led = !led;
+    });
     bleConn.init();
-    bleConn.setDataWrittenCb(setLedDuty);
+    bleConn.setDataWrittenCb([](uint8_t i)-> void {
+        led = i;
+    });
     
     eventQueue.dispatch_forever();
 

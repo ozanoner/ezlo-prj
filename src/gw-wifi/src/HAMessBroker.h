@@ -73,7 +73,10 @@ const char* HAMessBroker::fromNrf(String& buff) {
                 uint16_t oldConnH = this->byId[devId]->connHandle;
                 if(oldConnH != connH && this->byConn.find(oldConnH)!=this->byConn.end()) {
                     this->byConn.erase(oldConnH);
-                    Serial.printf("[info] oldConnH deleted (%d)\n", oldConnH);
+                    if(this->byConn.find(oldConnH)==this->byConn.end())
+                        Serial.printf("[info] oldConnH deleted (%d)\n", oldConnH);
+                    else
+                        Serial.printf("[error] oldConnH delete failed (%d)\n", oldConnH);
                 }
             }
             
@@ -86,11 +89,14 @@ const char* HAMessBroker::fromNrf(String& buff) {
         case BLE_EVENT_onDisconnected:
         {
             uint16_t connH = inputJ["conn"];
-            if(this->byConn.find(connH) == this->byConn.end()) {
-                outputJ["err_code"] = 1;
+            auto it = this->byConn.find(connH); 
+            if(it == this->byConn.end()) {
+                Serial.printf("[info] old disconnected message, skip (%d)\n", connH);
+                skip =true;
             }
             else {
-                outputJ["peer"] = this->byConn[connH]->devId;
+                it->second->connected = false;
+                outputJ["peer"] = it->second->devId;
             }
         }
         break;
