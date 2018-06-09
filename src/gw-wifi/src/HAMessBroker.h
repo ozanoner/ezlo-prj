@@ -130,7 +130,7 @@ const char* HAMessBroker::fromNrf(String& buff) {
                 outputJ["err_code"] = 3;
             }
             else {
-                uint32_t val = inputJ["val"];
+                String val = inputJ["val"];
                 uint16_t valH = inputJ["valh"];
                 uint16_t charU = this->getCharU(this->byConn[connH], valH);
                 if(HAMessBroker::isTrackedChar(charU)) {
@@ -219,7 +219,7 @@ const char* HAMessBroker::fromMqtt(String& buff) {
 
     if(inputJ.containsKey("val")) {
         if(charU == LED_STATE_CHARACTERISTIC_UUID
-                || charU == DIMMER_STATE_CHARACTERISTIC_UUID
+                || charU == DIMMER_ENERGY_CHARACTERISTIC_UUID
                 || charU == RGBLED_STATE_CHARACTERISTIC_UUID
                 || charU == PLUG_STATE_CHARACTERISTIC_UUID) {
             read=false;

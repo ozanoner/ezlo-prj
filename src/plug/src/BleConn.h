@@ -9,47 +9,49 @@
 
 #include "HABleServiceDefs.h"
 #include "HAProvision.h"
-
-// comes from common
 #include "PeripheralBleConn.h"
 
+#define DEV_PROVISION_ID PLUG_ID6
 
-#define DEV_PROVISION_ID LS_ID8
-
-static const uint8_t DEVICE_NAME[] = "LS_ID8";
+static const uint8_t DEVICE_NAME[] = "PLUG_ID6";
 static const Gap::Address_t BLE_NW_ADDR = {HOME_ID, 0x00, 0x00, 0xE1, 0x01, DEV_PROVISION_ID};
-static const uint16_t SERVICE_UUID_LIST[] = {LIGHT_SERVICE_UUID};
-
+static const uint16_t SERVICE_UUID_LIST[] = {PLUG_SERVICE_UUID};
 
 using namespace std;
 
 class BleConn : public PeripheralBleConn {
 private:
-    // in PeripheralBleConn
-    // BLE& ble;
-    // events::EventQueue& evq;
 
     // characteristics
-    ReadOnlyGattCharacteristic<uint16_t>  lightState;
+    ReadWriteGattCharacteristic<uint8_t>  plugState;
+    ReadOnlyArrayGattCharacteristic<uint8_t, 16>  energyData;
 
-    // ble init
     void onInitComplete(BLE::InitializationCompleteCallbackContext* event);
+
 
     // data communication
     void onDataWritten(const GattWriteCallbackParams* params) override;
     void onDataRead(const GattReadCallbackParams* params) override;
     void onDataSent(unsigned params) override;
+
+    uint8_t initialEnergyData[16] {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+
+    Callback<void(uint8_t)> plugSetCb;
     
 public:
-    // BleConn(EventQueue& evq) : evq(evq), ble(BLE::Instance()), 
-    BleConn(EventQueue& evq) : PeripheralBleConn(evq), 
-        lightState(LIGHT_STATE_CHARACTERISTIC_UUID, nullptr, GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_NOTIFY)
+    BleConn(EventQueue& evq) : PeripheralBleConn(evq), plugSetCb(nullptr),
+        plugState(PLUG_STATE_CHARACTERISTIC_UUID, 0),
+        energyData(DIMMER_ENERGY_CHARACTERISTIC_UUID, 
+            initialEnergyData, GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_NOTIFY)
              {    }
 
-    void init() override;
-    void updateSensorState(const uint16_t data);
+    void init();
+    void sendEnergyData(const uint32_t* data);
+    
+    void setControlCallbacks(Callback<void(uint8_t)> plugCb) {
+        this->plugSetCb = plugCb;
+    }
 };
-
 
 void BleConn::init() {
     if (ble.hasInitialized())
@@ -64,9 +66,6 @@ void BleConn::init() {
     }
     DPRN("[Info] BleConn::init completed\n");
 }
-
-
-
 
 void BleConn::onInitComplete(BLE::InitializationCompleteCallbackContext *event)
 {
@@ -86,21 +85,19 @@ void BleConn::onInitComplete(BLE::InitializationCompleteCallbackContext *event)
     
     ble.gap().setAddress(Gap::AddressType_t::PUBLIC, BLE_NW_ADDR);
     /* setup advertising */
-    // ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
     ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LIST_16BIT_SERVICE_IDS, 
         (uint8_t *)SERVICE_UUID_LIST, sizeof(SERVICE_UUID_LIST));
     ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LOCAL_NAME, (uint8_t *)DEVICE_NAME, sizeof(DEVICE_NAME));
 
-
-    GattCharacteristic* charTable[] = {&this->lightState};
-    GattService service(LIGHT_SERVICE_UUID, charTable, sizeof(charTable) / sizeof(GattCharacteristic *));
+    GattCharacteristic* charTable[] = { &this->plugState, &this->energyData};
+    GattService service(PLUG_SERVICE_UUID, charTable, sizeof(charTable) / sizeof(GattCharacteristic *));
     ble.gattServer().addService(service);
 
+
     // ble communication callbacks
-    ble.gattServer().onDataRead(this, &BleConn::onDataRead); // doesn't run??
+    ble.gattServer().onDataRead(this, &BleConn::onDataRead); 
     ble.gattServer().onDataSent(this, &BleConn::onDataSent); // for notification
     ble.gattServer().onDataWritten(this, &BleConn::onDataWritten);
-
 
     ble.gap().startAdvertising();
     DPRN("[Info] BleConn::onInitComplete completed. starting ad..\n");
@@ -115,13 +112,23 @@ void BleConn::onDataSent(unsigned count) {
     PeripheralBleConn::onDataSent(count);
 }
 
-void BleConn::onDataWritten(const GattWriteCallbackParams* params) {
+
+void BleConn::onDataWritten(const GattWriteCallbackParams *params) {
     PeripheralBleConn::onDataWritten(params);
+    // check value handle for dimmer state & plug state
+    if ((params->handle == this->plugState.getValueHandle()) && (params->len == 1)) {
+        if(this->plugSetCb != nullptr)
+            this->plugSetCb(*(params->data));
+        DPRN("[info] new plug state (%x)\n", *(params->data));
+    }
+  
 }
 
 
-void BleConn::updateSensorState(const uint16_t data) {
-    this->ble.gattServer().write(this->lightState.getValueHandle(), (uint8_t *)&data, sizeof(uint16_t));
+void BleConn::sendEnergyData(const uint32_t* data) {
+    // ble.gattServer().write(buttonState.getValueHandle(), (uint8_t *)&newState, sizeof(bool));
+
+    this->ble.gattServer().write(this->energyData.getValueHandle(), (uint8_t *)data, 16);
 }
 
 

@@ -60,6 +60,7 @@ private:
     void onCharDescriptorDisc(const CharacteristicDescriptorDiscovery::DiscoveryCallbackParams_t *p);
     void onCharDescriptorDiscTermination(const CharacteristicDescriptorDiscovery::TerminationCallbackParams_t *p);
     void onDisconnected(const Gap::DisconnectionCallbackParams_t *event);
+    void startDescriptorDiscovery();
 
     // data communication
     void onHVX(const GattHVXCallbackParams *p);
@@ -74,10 +75,20 @@ private:
     static bool isTrackedChar(UUID::ShortUUIDBytes_t charU);
 
     // void printDeviceCharacteristics(const HADevShadow& dev);
+
+    struct DataPack {
+        Gap::Handle_t connHandle;
+        GattAttribute::Handle_t handle;
+        uint16_t len;
+        const uint8_t *data;
+        uint8_t eventType;
+    };
+    void sendDataPack(const DataPack& p);
+
 public:
     BleConn(EventQueue& evq) : evq(evq), ble(BLE::Instance()),
                                isProcessing(false), //scanCnt(0),
-                               debugPrint(nullptr) 
+                               debugPrint(nullptr)
     {    }
 
     void init(Callback<void(const char*)>, DebugPrintFuncT);
@@ -96,17 +107,17 @@ void BleConn::userCommand(const char* data) {
         auto root = json::parse(data);
         Gap::Handle_t connHandle = root["conn"]; // connection handle
         // value handle
-        GattAttribute::Handle_t handle = root["handle"]; 
+        GattAttribute::Handle_t handle = root["handle"];
         uint8_t cmd = root["cmd"]; // get=0 | set=1
         uint32_t val=0;
         uint16_t size=0;
         if(cmd) {
             val = root["val"]; // state specific value if cmd=1
-            size = root["size"]; 
+            size = root["size"];
         }
         if(cmd) {
             if(size>0) {
-                ble_error_t ret = this->ble.gattClient().write(GattClient::GATT_OP_WRITE_REQ, 
+                ble_error_t ret = this->ble.gattClient().write(GattClient::GATT_OP_WRITE_REQ,
                     connHandle, handle, size, reinterpret_cast<const uint8_t*>(&val));
                 if(ret!=BLE_ERROR_NONE)
                     BLE_LOG("[error] BleConn::userCommand write failed (%d)", ret);
@@ -118,7 +129,7 @@ void BleConn::userCommand(const char* data) {
         } else {
             ble_error_t ret = this->ble.gattClient().read(connHandle, handle, 0);
             if(ret!=BLE_ERROR_NONE)
-                BLE_LOG("[error] BleConn::userCommand read failed");
+                BLE_LOG("[error] BleConn::userCommand read failed (%d)", ret);
         }
     }
     catch(...) {
@@ -189,15 +200,15 @@ void BleConn::onInitComplete(BLE::InitializationCompleteCallbackContext *event)
         BLE_LOG("[error] setScanParams (%d)", err);
     }
 
-    // WARNING!! The following code stops multi peripheral connection!!  
+    // WARNING!! The following code stops multi peripheral connection!!
     // ble.gap().setScanParams();
     // ble.gap().setActiveScanning(true);
     /* all calls are serialised on the user thread through the event queue */
     ble.gap().onConnection(this, &BleConn::onConnected);
     ble.gap().onDisconnection(this, &BleConn::onDisconnected);
-    
 
-    // BLEProtocol::Address_t lightSensorAddr = BLEProtocol::Address_t(BLEProtocol::AddressType::PUBLIC, 
+
+    // BLEProtocol::Address_t lightSensorAddr = BLEProtocol::Address_t(BLEProtocol::AddressType::PUBLIC,
     //     {HOME_ID, 0x00, 0x00, 0xE1, 0x01, LS_ID8});
     // BLEProtocol::Address_t addresses[2] = {lightSensorAddr};
     // Gap::Whitelist_t whitelist {addresses, 1, 2};
@@ -231,7 +242,7 @@ void BleConn::scan()
     ble_error_t err;
 
     BLE_LOG("[Info] Gap::startScan");
-    
+
     err = ble.gap().startScan(this, &BleConn::onAdDetected);
     if(err != BLE_ERROR_NONE) {
         // if scanning, err == BLE_ERROR_PARAM_OUT_OF_RANGE
@@ -252,9 +263,9 @@ void BleConn::onAdDetected(const Gap::AdvertisementCallbackParams_t *params)
         // BLE_LOG("[Info] BleConn::onAdDetected. isProcessing..");
         return;
     }
-    
+
     if (params->peerAddr[HOME_ID_IDX] != HOME_ID) {
-        // BLE_LOG("[Info] BleConn::onAdDetected. invalid home_id (%hhx)", 
+        // BLE_LOG("[Info] BleConn::onAdDetected. invalid home_id (%hhx)",
         //     params->peerAddr[HOME_ID_IDX]);
         return;
     }
@@ -263,8 +274,8 @@ void BleConn::onAdDetected(const Gap::AdvertisementCallbackParams_t *params)
     BLE_LOG("[Info] Gap::connect");
 
     // Gap::ConnectionParams_t p {0x0006, 0x0C80, 0x01F3, 0x0C80};
-    
-    ble_error_t err = ble.gap().connect(params->peerAddr, 
+
+    ble_error_t err = ble.gap().connect(params->peerAddr,
             BLEProtocol::AddressType_t::PUBLIC, nullptr, nullptr);
             // BLEProtocol::AddressType_t::PUBLIC, &p, nullptr);
     if(err != BLE_ERROR_NONE) {
@@ -316,17 +327,29 @@ void BleConn::onServiceDiscoveryTermination(Gap::Handle_t connectionHandle)
 {
     BLE_LOG("[Info] BleConn::onServiceDiscoveryTermination");
 
-    for(const auto& c: discoveredChars) {
-        c.discoverDescriptors(
-                makeFunctionPointer(this, &BleConn::onCharDescriptorDisc),
-                makeFunctionPointer(this, &BleConn::onCharDescriptorDiscTermination));    
-    }
-    discoveredChars.clear();
-   
+    // for(const auto& c: discoveredChars) {
+
+    //     BLE_LOG("[Info] starting desc discovery for (%x)", c.getUUID().getShortUUID());
+    //     c.discoverDescriptors(
+    //             makeFunctionPointer(this, &BleConn::onCharDescriptorDisc),
+    //             makeFunctionPointer(this, &BleConn::onCharDescriptorDiscTermination));
+    // }
+    // discoveredChars.clear();
+
+    this->startDescriptorDiscovery();
+
     isProcessing = false;
     evq.call(this, &BleConn::scan);
 }
 
+void BleConn::startDescriptorDiscovery() {
+    if(discoveredChars.size()>0) {
+        discoveredChars.back().discoverDescriptors(
+            makeFunctionPointer(this, &BleConn::onCharDescriptorDisc),
+            makeFunctionPointer(this, &BleConn::onCharDescriptorDiscTermination));
+        discoveredChars.pop_back();
+    }
+}
 
 // https://os.mbed.com/docs/v5.7/mbed-os-api-doxy/class_discovered_characteristic.html
 void BleConn::onCharacteristicDiscovery(const DiscoveredCharacteristic* discChar)
@@ -343,36 +366,62 @@ void BleConn::onCharacteristicDiscovery(const DiscoveredCharacteristic* discChar
 
     if(discChar->getProperties().notify())
         discoveredChars.push_back(*discChar);
-   
+
 }
 
 void BleConn::onCharDescriptorDisc(const CharacteristicDescriptorDiscovery::DiscoveryCallbackParams_t* p)
 {
-    BLE_LOG("[Info] BleConn::onCharDescriptorDisc");
+    auto cUuid = p->characteristic.getUUID().getShortUUID();
+    BLE_LOG("[Info] BleConn::onCharDescriptorDisc for (%x)", cUuid);
+
     if (p->descriptor.getUUID() == BLE_UUID_DESCRIPTOR_CLIENT_CHAR_CONFIG)
     {
         BLE_LOG("[Info] CCCD found");
-        cccdList[p->characteristic.getUUID().getShortUUID()] = p->descriptor.getAttributeHandle(); 
-        ble.gattClient().terminateCharacteristicDescriptorDiscovery(p->characteristic);
+        cccdList[p->characteristic.getUUID().getShortUUID()] = p->descriptor.getAttributeHandle();
+        // ble.gattClient().terminateCharacteristicDescriptorDiscovery(p->characteristic);
     }
 }
 
 void BleConn::onCharDescriptorDiscTermination(const CharacteristicDescriptorDiscovery::TerminationCallbackParams_t *p)
 {
-    BLE_LOG("[Info] BleConn::onCharDescriptorDiscTermination");
+    auto cUuid = p->characteristic.getUUID().getShortUUID();
+    BLE_LOG("[Info] BleConn::onCharDescriptorDiscTermination for (%x)", cUuid);
 
     auto it = cccdList.find(p->characteristic.getUUID().getShortUUID());
     if(it != cccdList.end()) {
         uint16_t notification_enabled = 1;
-        ble.gattClient().write(
+        ble_error_t err = ble.gattClient().write(
             GattClient::GATT_OP_WRITE_CMD,
             p->characteristic.getConnectionHandle(),
             it->second,
             sizeof(notification_enabled),
             reinterpret_cast<const uint8_t *>(&notification_enabled));
+        if(err == BLE_ERROR_NONE) {
+            BLE_LOG("[Info] CCCD notification enabled for (%x)", cUuid);
+        }
+        else {
+            BLE_LOG("[Error] CCCD notification FAILED for (%x), err=(%d)", cUuid, err);
+        }
         cccdList.erase(it);
-        BLE_LOG("[Info] CCCD notification enabled");
     }
+    this->startDescriptorDiscovery();
+}
+
+void BleConn::sendDataPack(const DataPack& p) {
+    json j;
+    j["evt"] = p.eventType;
+    j["conn"] = p.connHandle;
+    j["valh"] = p.handle;
+
+    auto len = p.len;
+    char buff[2*len+1];
+    buff[2*len]=0;
+    for(int i=0; i<len; i++) {
+        sprintf(buff+i*2, "%02x", p.data[i]);
+    }
+    j["val"]=std::string(buff);
+
+    this->respCb(j.dump().c_str());
 }
 
 // https://docs.mbed.com/docs/ble-api/en/master/api/structGattHVXCallbackParams.html
@@ -380,36 +429,53 @@ void BleConn::onHVX(const GattHVXCallbackParams *p)
 {
     BLE_LOG("[Info] BleConn::onHVX (data:%x)", *(p->data));
 
-    json j;
-    j["evt"] = BLE_EVENT_onHVX;
-    j["conn"] = p->connHandle;
-    j["valh"] = p->handle;
-    if(p->len == 4) {
-        uint32_t val = *(reinterpret_cast<const uint32_t*>(p->data));
-        j["val"] = val; 
-    } else {
-        j["val"] = *(p->data); 
-    }
-    this->respCb(j.dump().c_str());
+    DataPack p1 {p->connHandle, p->handle, p->len, p->data, BLE_EVENT_onHVX};
+    this->sendDataPack(p1);
     evq.call(this, &BleConn::scan);
+    // json j;
+    // j["evt"] = BLE_EVENT_onHVX;
+    // j["conn"] = p->connHandle;
+    // j["valh"] = p->handle;
+
+    // auto len = p->len;
+    // char buff[2*len+1];
+    // buff[2*len]=0;
+    // for(int i=0; i<len; i++) {
+    //     sprintf(buff+i*2, "%02x", p->data[i]);
+    // }
+    // j["val"]=std::string(buff);
+
+    // this->respCb(j.dump().c_str());
+    // evq.call(this, &BleConn::scan);
 }
 
 void BleConn::onDataRead(const GattReadCallbackParams *p)
 {
-    BLE_LOG("[Info] BleConn::onDataRead (data:%x)", *(p->data));
+    BLE_LOG("[Info] BleConn::onDataRead data:(%02x) len:(%d)", *(p->data), p->len);
 
     if(p->status == BLE_ERROR_NONE) {
-        json j;
-        j["evt"] = BLE_EVENT_onDataRead;
-        j["conn"] = p->connHandle;
-        j["valh"] = p->handle;
-        if(p->len == 4) {
-            uint32_t val = *(reinterpret_cast<const uint32_t*>(p->data));
-            j["val"] = val; 
-        } else {
-            j["val"] = *(p->data); 
-        }
-        this->respCb(j.dump().c_str());
+        DataPack p1 {p->connHandle, p->handle, p->len, p->data, BLE_EVENT_onDataRead};
+        this->sendDataPack(p1);
+        evq.call(this, &BleConn::scan);
+    
+        // json j;
+        // j["evt"] = BLE_EVENT_onDataRead;
+        // j["conn"] = p->connHandle;
+        // j["valh"] = p->handle;
+
+        // char buff[2*(p->len)+1];
+        // buff[2*(p->len)]=0;
+        // for(int i=0; i<p->len; i++) {
+        //     sprintf(buff+i*2, "%02x", p[i].data);
+        // }
+        // // if(p->len == 4) {
+        // //     uint32_t val = *(reinterpret_cast<const uint32_t*>(p->data));
+        // //     j["val"] = val;
+        // // } else {
+        // //     j["val"] = *(p->data);
+        // // }
+        // j["val"]=std::string(buff);
+        // this->respCb(j.dump().c_str());
     }
     else {
         BLE_LOG("[error] BleConn::onDataRead (err:%d)", p->error_code);

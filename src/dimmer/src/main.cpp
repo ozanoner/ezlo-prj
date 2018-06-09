@@ -26,9 +26,11 @@
 #include "SEGGER_RTT.h"
 #include "BleConn.h"
 #include "HATestButton.h"
+#include "SoftPwm1.h";
 
 DigitalOut plug(P0_4, 1);
-DigitalOut triac(P0_7, 1);
+DigitalOut triacPin(P0_7, 1);
+SoftPwm1 triac(triacPin);
 
 SPI spi(NC, STPM01_SDA, STPM01_SCL); // mosi, miso, sclk
 DigitalOut cs(STPM01_SCS, 1);
@@ -38,18 +40,40 @@ STPM01Driver pm(spi, cs, syn);
 static EventQueue eventQueue;
 
 BleConn bleConn(eventQueue);
-static HATestButton testBtn(eventQueue);
+static HATestButton testButton(eventQueue);
 
 
 int main(void)
 {
+    auto plugCb = [](uint8_t val)-> void {
+        plug = val;
+        testButton.testLed = val;
+    };
+
+    auto triacCb = [](uint8_t val)-> void {
+        if(val>0) {
+            triac.start_us(100, val);
+        }
+        else  {
+            triac.stop();
+        }
+        
+    }; 
+
+    bleConn.setControlCallbacks(plugCb, triacCb);
+
+    testButton.setPressCb([]()-> void {
+        plug = !plug;
+    });
+
+
+    bleConn.init();
+    
     auto energyCb = [](const uint32_t* data)->void {
         bleConn.sendEnergyData(data);
     };
-
     pm.init(energyCb);
-    bleConn.init();
-    
+
     eventQueue.call_every(5000, []()->void {
         pm.read();
     });

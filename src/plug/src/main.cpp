@@ -16,110 +16,56 @@
 
 // https://os.mbed.com/teams/Bluetooth-Low-Energy/code/BLE_LED/
 
-#include <mbed_events.h>
+
 #include <mbed.h>
+#include <mbed_events.h>
 #include "ble/BLE.h"
 #include "ble/Gap.h"
-#include "PlugService.h"
 #include "HAHardwareDefs.h"
+#include "STPM01Driver.h"
+#include "SEGGER_RTT.h"
+#include "BleConn.h"
+#include "HATestButton.h"
+#include "SoftPwm1.h";
 
-DigitalOut led1(P0_9, 0);
 DigitalOut plug(P0_4, 1);
-DigitalOut triac(P0_7, 1);
-InterruptIn testButton(TEST_BTN);
 
+SPI spi(NC, STPM01_SDA, STPM01_SCL); // mosi, miso, sclk
+DigitalOut cs(STPM01_SCS, 1);
+DigitalOut syn(STPM01_SYN, 1);
+STPM01Driver pm(spi, cs, syn);
 
-const static char     DEVICE_NAME[] = "Plug";
-static const uint16_t uuid16_list[] = {PlugService::PLUG_SERVICE_UUID};
+static EventQueue eventQueue;
 
-PlugService *plugServicePtr;
-static EventQueue eventQueue(/* event count */ 10 * EVENTS_EVENT_SIZE);
+BleConn bleConn(eventQueue);
+static HATestButton testButton(eventQueue);
 
-void disconnectionCallback(const Gap::DisconnectionCallbackParams_t *params)
-{
-    BLE::Instance().gap().startAdvertising();
-}
-
-void blinkCallback(void)
-{
-    // led1 = !led1; /* Do blinky on LED1 to indicate system aliveness. */
-    // triac = !triac;
-}
-
-
-void onDataWrittenCallback(const GattWriteCallbackParams *params) {
-    if ((params->handle == plugServicePtr->getValueHandle()) && (params->len == 1)) {
-        plug = *(params->data);
-        // printf("new plug value: %d\n", *(params->data));
-    }
-}
-
-/**
- * This function is called when the ble initialization process has failed
- */
-void onBleInitError(BLE &ble, ble_error_t error)
-{
-    printf("BLE error: %d\n", error);
-}
-
-/**
- * Callback triggered when the ble initialization process has finished
- */
-void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
-{
-    BLE&        ble   = params->ble;
-    ble_error_t error = params->error;
-
-    if (error != BLE_ERROR_NONE) {
-        /* In case of error, forward the error handling to onBleInitError */
-        onBleInitError(ble, error);
-        return;
-    }
-
-    /* Ensure that it is the default instance of BLE */
-    if(ble.getInstanceID() != BLE::DEFAULT_INSTANCE) {
-        return;
-    }
-
-    ble.gap().onDisconnection(disconnectionCallback);
-    ble.gattServer().onDataWritten(onDataWrittenCallback);
-
-    plugServicePtr = new PlugService(ble);
-
-    /* setup advertising */
-    ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
-    ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LIST_16BIT_SERVICE_IDS, (uint8_t *)uuid16_list, sizeof(uuid16_list));
-    ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LOCAL_NAME, (uint8_t *)DEVICE_NAME, sizeof(DEVICE_NAME));
-    ble.gap().setAdvertisingType(GapAdvertisingParams::ADV_CONNECTABLE_UNDIRECTED);
-    ble.gap().setAdvertisingInterval(1000); /* 1000ms. */
-    ble.gap().startAdvertising();
-}
-
-void scheduleBleEventsProcessing(BLE::OnEventsToProcessCallbackContext* context) {
-    BLE &ble = BLE::Instance();
-    eventQueue.call(Callback<void()>(&ble, &BLE::processEvents));
-}
 
 int main(void)
 {
+    auto plugCb = [](uint8_t val)-> void {
+        plug = val;
+        testButton.testLed = val;
+    };
 
-    eventQueue.call_every(1000, blinkCallback);
+    bleConn.setControlCallbacks(plugCb);
 
-    BLE &ble = BLE::Instance();
-    ble.onEventsToProcess(scheduleBleEventsProcessing);
-    ble.init(bleInitComplete);
-
-    // set HIGH to see if normally open or closed
-    // plug =1; => relay ON
-
-    testButton.fall([]()->void {
-        eventQueue.call([]()->void {
-            led1 = !led1;
-            plug = !plug;
-        });
+    testButton.setPressCb([]()-> void {
+        plug = !plug;
     });
 
+
+    bleConn.init();
+    
+    auto energyCb = [](const uint32_t* data)->void {
+        bleConn.sendEnergyData(data);
+    };
+    pm.init(energyCb);
+
+    eventQueue.call_every(5000, []()->void {
+        pm.read();
+    });
+
+   
     eventQueue.dispatch_forever();
-
-
 }
