@@ -10,10 +10,28 @@
 #include <Print.h>
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <cstdlib>
 
 // https://arduinojson.org/example/
 
 using namespace std;
+
+
+extern "C" {
+
+// buff size should be 5
+char* uuid2hex(char* buff, uint16_t uuid) {
+    auto bytes = (uint8_t *) &uuid;
+    sprintf(buff, "%02x%02x", bytes[1], bytes[0]);
+    return buff;
+}
+
+uint16_t hex2uuid(const char* buff) {
+    auto val = strtoul(buff, NULL, 16);
+    return (uint16_t)val;
+}
+
+}
 
 class HAMessBroker {
 private:
@@ -113,7 +131,8 @@ const char* HAMessBroker::fromNrf(String& buff) {
                 if(HAMessBroker::isTrackedChar(charU)) {
                     this->addAttrib(this->byConn[connH], charU, valH);
                     outputJ["peer"] = this->byConn[connH]->devId;
-                    outputJ["char"] = charU;
+                    char tbuff[5];
+                    outputJ["char"] = uuid2hex(tbuff, charU);
                 }
                 else {
                     skip=true;
@@ -135,7 +154,8 @@ const char* HAMessBroker::fromNrf(String& buff) {
                 uint16_t charU = this->getCharU(this->byConn[connH], valH);
                 if(HAMessBroker::isTrackedChar(charU)) {
                     outputJ["peer"] = this->byConn[connH]->devId;
-                    outputJ["char"] = charU;
+                    char tbuff[5];
+                    outputJ["char"] = uuid2hex(tbuff, charU);
                     outputJ["val"] = val;
                 }
                 else {
@@ -198,7 +218,7 @@ const char* HAMessBroker::fromMqtt(String& buff) {
     }
 
     uint16_t devId = inputJ["peer"];
-    uint16_t charU = inputJ["char"];
+    uint16_t charU = hex2uuid(inputJ["char"]);
     bool read=true;
 
     uint16_t connH;
