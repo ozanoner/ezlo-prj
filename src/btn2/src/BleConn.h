@@ -38,7 +38,7 @@ private:
     
 public:
     BleConn(EventQueue& evq) : PeripheralBleConn(evq), 
-        buttonState(BUTTON_STATE_CHARACTERISTIC_UUID, nullptr, GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_NOTIFY),
+        buttonState(BUTTON1_STATE_CHARACTERISTIC_UUID, nullptr, GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_NOTIFY),
         button2State(BUTTON2_STATE_CHARACTERISTIC_UUID, nullptr, GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_NOTIFY)
              {    }
 

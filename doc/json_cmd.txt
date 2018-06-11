@@ -1,0 +1,16 @@
+
+Plug:
+{"peer":7,"char":"a108", "cmd":1, "val":0}
+
+LED:
+{"peer":4,"char":"a103", "cmd":1, "val":0}
+
+RGB-LED:
+{"peer":5,"char":"a107", "cmd":1, "val":16843008} all
+
+{"peer":5,"char":"a107", "cmd":1, "val":16777216} blue
+
+{"peer":5,"char":"a107", "cmd":1, "val":65536} red
+
+{"peer":5,"char":"a107", "cmd":1, "val":256} blue
+

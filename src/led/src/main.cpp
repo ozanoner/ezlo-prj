@@ -27,6 +27,7 @@
 #include "HAHardwareDefs.h"
 #include "HAProvision.h"
 #include "SoftPwm1.h"
+#include <nrf.h>
 
 // SoftPWM
 // https://os.mbed.com/users/komaida424/code/SoftPWM/
