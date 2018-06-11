@@ -30,3 +30,13 @@
 *.exe
 *.out
 *.app
+
+# some files
+*.pdf
+
+# vim temp
+*~
+
+# tmp dir
+tmp/
+.vscode
